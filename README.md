@@ -1,253 +1,281 @@
 # cybercafe-api-backend
-# CyberCafe Backend
 
-Backend del sistema de gestión integral para Cybercafé.
+# CyberCafe API Backend
 
-Este proyecto corresponde a la API central del sistema y será responsable de gestionar la lógica de negocio, autenticación, usuarios, equipos, inventario, ventas, rentas y reportes.
+Backend del sistema de gestión integral para Cybercafé construido con FastAPI.
 
-El backend está desarrollado utilizando **Django** y **Django REST Framework**, con autenticación mediante **JWT**.
+Este proyecto centraliza la lógica del negocio, la autenticación, los usuarios, la administración de equipos, inventario, ventas, alquileres y reportes mediante una API REST moderna y rápida.
 
----
-
-## Tecnologías utilizadas
-
-* **Python**
-* **Django**
-* **Django REST Framework**
-* **Simple JWT**
-* **django-cors-headers**
-* **MySQL**
-* **mysqlclient**
-* **PyMySQL**
-* **Git / GitHub**
+La arquitectura está pensada para escalar de forma modular y mantener una separación clara entre configuración, autenticación, modelos, utilidades y endpoints.
 
 ---
 
-## Requisitos
+## Tecnologías y stack
+
+* Python 3.10+
+* FastAPI
+* Uvicorn
+* Pydantic
+* JWT / autenticación basada en tokens
+* SQLAlchemy o conexión directa a base de datos (según implementación)
+* MySQL / PostgreSQL (según entorno)
+* Python-dotenv
+* Git / GitHub
+
+---
+
+## Objetivo del backend
+
+La API será responsable de:
+
+* Gestionar usuarios y roles del sistema
+* Controlar autenticación y autorización
+* Administrar equipos, hardware y estados
+* Registrar ventas, consumos y servicios
+* Manejar alquileres y reservas
+* Consultar reportes y métricas operativas
+* Exponer endpoints para integración con frontend o aplicaciones cliente
+
+---
+
+## Requisitos previos
 
 Antes de instalar el proyecto se debe contar con:
 
-* Python instalado.
-* `pip` funcionando correctamente.
-* MySQL instalado y configurado.
-* Git instalado.
-* Un editor de código, como Visual Studio Code.
-* Acceso al repositorio del proyecto.
-
-Se recomienda utilizar un entorno virtual de Python para mantener aisladas las dependencias del proyecto.
+* Python instalado
+* `pip` funcionando correctamente
+* Un entorno virtual configurado
+* Base de datos disponible y configurada
+* Git instalado
+* Visual Studio Code o editor equivalente
 
 ---
 
 ## 1. Crear el entorno virtual
 
-Desde la carpeta donde se encuentra el proyecto:
+Desde la raíz del proyecto:
 
 ```bash
-python -m venv venv
+python -m venv .venv
 ```
 
 Activar el entorno virtual en Windows:
 
 ```bash
-venv\Scripts\activate
+.venv\Scripts\activate
 ```
 
-Una vez activado, la terminal debería mostrar algo similar a:
+Si todo salió bien, la terminal mostrará algo similar a:
 
 ```text
-(venv) C:\ruta\cybercafe-backend>
+(.venv) C:\ruta\cybercafe-api-backend>
 ```
 
 ---
 
-## 2. Instalar las dependencias
+## 2. Instalar dependencias
 
-Las dependencias utilizadas inicialmente en el proyecto son:
+Instalar las dependencias del proyecto:
 
 ```bash
-pip install django djangorestframework djangorestframework-simplejwt django-cors-headers mysqlclient pymysql
+pip install -r requirements.txt
 ```
 
-### Dependencias principales
-
-| Dependencia                     | Función                                                                            |
-| ------------------------------- | ---------------------------------------------------------------------------------- |
-| `django`                        | Framework principal del backend                                                    |
-| `djangorestframework`           | Desarrollo de la API REST                                                          |
-| `djangorestframework-simplejwt` | Autenticación mediante JWT                                                         |
-| `django-cors-headers`           | Permitir solicitudes desde otros orígenes, como el frontend web o aplicación móvil |
-| `mysqlclient`                   | Conexión de Django con MySQL                                                       |
-| `pymysql`                       | Cliente MySQL escrito en Python                                                    |
-
-Después de instalar las dependencias se puede generar el archivo:
+Si se agregan nuevas librerías, se recomienda mantener el archivo actualizado con:
 
 ```bash
 pip freeze > requirements.txt
 ```
 
-Este archivo permite registrar las versiones de las dependencias utilizadas por el proyecto.
+---
+
+## 3. Variables de entorno
+
+El proyecto utiliza un archivo `.env` para manejar configuraciones locales.
+
+Se incluye un ejemplo en:
+
+```text
+.env-example
+```
+
+Ejemplo base:
+
+```env
+APP_NAME=cybercafe-api
+DEBUG=true
+DATABASE_URL=mysql+pymysql://user:password@localhost:3306/cybercafe
+SECRET_KEY=tu_secret_key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+```
+
+> Copia `.env-example` como `.env` y ajusta los valores según tu entorno local.
 
 ---
 
-## 3. Crear el proyecto Django
+## 4. Ejecutar la API
 
-El proyecto Django fue creado utilizando:
+Se puede iniciar la aplicación con Uvicorn:
 
 ```bash
-django-admin startproject config .
+uvicorn main:app --reload
 ```
 
-El nombre `config` corresponde al paquete principal de configuración de Django.
-
-Por decisión del proyecto, se utiliza `config` y no un nombre como `core_cybercafe`.
-
-El punto (`.`) al final del comando permite crear el proyecto directamente dentro de la carpeta actual.
-
-La estructura inicial contiene:
+Esto levantará la API en:
 
 ```text
-config/
-├── settings.py
-├── urls.py
-├── asgi.py
-└── wsgi.py
+http://127.0.0.1:8000
+```
 
-manage.py
+La documentación Swagger queda disponible en:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Y la documentación OpenAPI en:
+
+```text
+http://127.0.0.1:8000/redoc
 ```
 
 ---
 
-## 4. Estructura del proyecto
+## 5. Estructura del proyecto
 
-Se recomendó utilizar una estructura modular para separar las diferentes funcionalidades del sistema.
-
-La estructura propuesta es:
+La organización actual del backend es la siguiente:
 
 ```text
-cybercafe-backend/
-│
-├── config/
-│   ├── settings.py
-│   ├── urls.py
-│   ├── asgi.py
-│   └── wsgi.py
-│
-├── users/
-│   ├── migrations/
-│   ├── models.py
-│   ├── serializers.py
-│   ├── views.py
-│   ├── urls.py
-│   └── tests.py
-│
-├── equipment/
-│   ├── migrations/
-│   ├── models.py
-│   ├── serializers.py
-│   ├── views.py
-│   ├── urls.py
-│   └── tests.py
-│
-├── inventory/
-│
-├── sales/
-│
-├── rentals/
-│
-├── reports/
-│
-├── tests/
-│
+cybercafe-api-backend/
 ├── .env
+├── .env-example
 ├── .gitignore
-├── manage.py
+├── main.py
+├── README.md
 ├── requirements.txt
-└── README.md
+├── config/
+│   ├── db.py
+│   ├── security.py
+│   ├── security_dependencia.py
+│   └── session_dependencia.py
+├── lib/
+│   └── pwd.py
+├── models/
+├── oauth/
+│   └── oauth.py
+├── routers/
+└── .venv/
 ```
-
-Esta estructura fue recomendada para mantener el backend organizado por módulos y facilitar el desarrollo colaborativo.
-
-Aunque actualmente se está comenzando a trabajar con Django, separar las funcionalidades desde el inicio permite que cada parte del sistema tenga un lugar definido y sea más fácil de localizar, modificar y mantener posteriormente.
-
-La idea general es que cada aplicación de Django represente una parte funcional del sistema.
 
 ---
 
-## 5. Organización de las aplicaciones
+## 6. Descripción de módulos
+
+### `main.py`
+
+Archivo principal de la aplicación. Aquí se inicializa la instancia de FastAPI y se registran los routers principales.
 
 ### `config/`
 
-Contiene la configuración general del proyecto Django.
+Contiene la configuración de infraestructura y seguridad del proyecto.
 
-```text
-config/
-├── settings.py
-├── urls.py
-├── asgi.py
-└── wsgi.py
-```
+* `db.py`: configuración de conexión a base de datos
+* `security.py`: configuración central de autenticación y JWT
+* `security_dependencia.py`: dependencias para proteger endpoints
+* `session_dependencia.py`: manejo de sesión o dependencias relacionadas
 
-#### `settings.py`
+### `models/`
 
-Contiene la configuración principal del proyecto, incluyendo:
+Carpeta destinada a los modelos de datos del sistema.
 
-* Aplicaciones instaladas.
-* Base de datos.
-* Middleware.
-* Configuración de Django REST Framework.
-* Autenticación.
-* Archivos estáticos.
-* Configuración de CORS.
-* Variables de entorno.
+Aquí se definirán entidades como:
 
-#### `urls.py`
+* usuarios
+* roles
+* equipos
+* inventario
+* ventas
+* alquileres
+* reportes
 
-Define las rutas principales de la API y conecta las rutas de las diferentes aplicaciones.
+### `oauth/`
 
-#### `asgi.py`
+Módulo para la lógica relacionada con autenticación OAuth o integración con proveedores de identidad.
 
-Punto de entrada para servidores compatibles con ASGI.
+### `lib/`
 
-#### `wsgi.py`
+Contiene utilidades y helpers reutilizables.
 
-Punto de entrada para servidores compatibles con WSGI.
+* `pwd.py`: helpers relacionados con contraseñas, hashing o validaciones
 
----
+### `routers/`
 
-### `users/`
+Carpeta para la definición de endpoints por dominio funcional.
 
-Se encargará de la gestión de usuarios y autenticación.
+Ejemplo:
 
-En este módulo se trabajarán posteriormente:
-
-* Usuarios.
-* Roles.
-* Permisos.
-* Autenticación.
-* JWT.
-
-Los roles principales definidos para el sistema son:
-
-* Administrador.
-* Cajero.
-* Asistente.
+* usuarios
+* autenticación
+* equipos
+* ventas
+* reportes
 
 ---
 
-### `equipment/`
+## 7. Convención de arquitectura
 
-Se encargará de la administración de los equipos del Cybercafé.
+El proyecto sigue un enfoque modular de FastAPI:
 
-Aquí se desarrollará la lógica relacionada con:
+* `main.py` para la creación de la app
+* `config/` para infraestructura y seguridad
+* `models/` para entidades del dominio
+* `routers/` para endpoints por módulo
+* `lib/` para utilidades compartidas
+* `oauth/` para integración con autenticación externa
 
-* Computadoras.
-* Consolas.
-* Componentes.
-* Estados de los equipos.
-* Repuestos.
-* Registro de daños.
-* Reemplazo de componentes.
+Esto permite mantener la aplicación organizada, reducir acoplamiento y facilitar el crecimiento del sistema.
 
+---
+
+## 8. Recomendaciones de desarrollo
+
+* Mantener cada dominio funcional en su propio router
+* Separar validaciones y lógica de negocio de los endpoints
+* Usar `Depends` para autenticación y permisos
+* Centralizar variables sensibles en `.env`
+* Usar Pydantic para validación de datos
+* Documentar cada endpoint con descripciones claras y respuestas esperadas
+
+---
+
+## 9. Flujo de trabajo sugerido
+
+1. Crear o actualizar modelos en `models/`
+2. Definir rutas en `routers/`
+3. Configurar dependencias y seguridad en `config/`
+4. Ejecutar la API localmente con `uvicorn`
+5. Validar endpoints con Swagger
+6. Realizar pruebas antes de integrar cambios a la rama principal
+
+---
+
+## 10. Estado del proyecto
+
+El proyecto está en proceso de migración hacia una arquitectura basada en FastAPI, manteniendo una organización modular orientada al crecimiento del sistema y a la integración con frontend, administración y servicios del cybercafé.
+
+---
+
+## 11. Siguientes pasos recomendados
+
+* Definir modelos base de usuarios, equipos y ventas
+* Implementar autenticación JWT completa
+* Crear routers por módulo funcional
+* Añadir validaciones con Pydantic
+* Preparar entorno de pruebas y base de datos
+* Documentar endpoints y respuestas esperadas
+
+Si quieres, también puedo dejarte una versión más pulida del README con badges, ejemplo de estructura de endpoints y un `docker-compose` base para FastAPI + MySQL.
 ---
 
 ### `inventory/`

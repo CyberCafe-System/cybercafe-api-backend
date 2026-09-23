@@ -25,7 +25,7 @@ class ComponenteBase(SQLModel):
     activo: bool = Field(default=True)
 
 class Componente(ComponenteBase, table=True):
-    __tablename__ = "tareas" #type: ignore
+    __tablename__ = "componentes" #type: ignore
     componente_id: int|None = Field(default=None, primary_key=True)
 
 class ComponenteCreate(ComponenteBase):

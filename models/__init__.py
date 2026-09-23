@@ -1,0 +1,1 @@
+from models.componente import Componente

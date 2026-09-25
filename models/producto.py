@@ -1,6 +1,5 @@
 from sqlmodel import SQLModel, Field, Column, Enum as SAEnum, Text
 from typing import Optional
-from enum import Enum
 from decimal import Decimal
 
 class ProductoBase(SQLModel):

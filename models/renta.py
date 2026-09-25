@@ -8,10 +8,7 @@ class EstadoPago(str, Enum):
     PENDIENTE = "Pendiente"
     PAGADO = "Pagado"
 
-class EstadoRenta(str, Enum):
-    ACTIVA = "Activa"
-    FINALIZADA = "Finalizada"
-    PENDIENTE_REVISION = "Pendiente Revision"
+
 
 def obtener_fecha_utc():
     return datetime.now(timezone.utc)

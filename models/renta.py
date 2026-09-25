@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field, Column, Enum as SAEnum, Text
+from sqlmodel import SQLModel, Field, Column, Enum as SAEnum
 from typing import Optional
 from enum import Enum
 from decimal import Decimal

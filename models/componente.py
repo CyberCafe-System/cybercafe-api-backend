@@ -19,8 +19,8 @@ class ComponenteBase(SQLModel):
     nombre: str = Field(nullable=False, min_length=3, max_length=255)
     tipo: TipoComponente = Field(sa_column=Column(SAEnum(TipoComponente)))
     estado: EstadoComponente = Field(sa_column=Column(SAEnum(EstadoComponente)))
-    descripcion: Optional[Text] = Field(default=None, sa_column=Column(Text))
-    observaciones: Optional[Text] = Field(default=None, sa_column=Column(Text))
+    descripcion: Optional[str] = Field(default=None, sa_column=Column(Text))
+    observaciones: Optional[str] = Field(default=None, sa_column=Column(Text))
     imagen: Optional[str] = Field(default=None, max_length=255)
     activo: bool = Field(default=True)
 

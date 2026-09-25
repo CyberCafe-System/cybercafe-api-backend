@@ -8,7 +8,7 @@ def obtener_fecha_utc():
     return datetime.now(timezone.utc)
 
 class RevisionEquipoBase(SQLModel):
-    renta_detalle_id: int = Field(foreign_key="renta_detalle.renta_detalle_id")
+    detalle_renta_id: int = Field(foreign_key="detalle_renta.detalle_renta_id")
     usuario_id: int = Field(foreign_key="usuarios.usuario_id")
     inspeccion_pasada: bool
     observaciones: str = Field(sa_column=Column(Text))

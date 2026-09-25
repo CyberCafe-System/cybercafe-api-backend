@@ -15,7 +15,7 @@ class EstadoComponente(str, Enum):
     REQUIERE_REEMPLAZO = "Requiere reemplazo"
 
 class ComponenteBase(SQLModel):
-    equipo_id: Optional[int] = Field(default=None, foreign_key="equipos.id")
+    equipo_id: Optional[int] = Field(default=None, foreign_key="equipos.equipo_id")
     nombre: str = Field(nullable=False, min_length=3, max_length=255)
     tipo: TipoComponente = Field(sa_column=Column(SAEnum(TipoComponente)))
     estado: EstadoComponente = Field(sa_column=Column(SAEnum(EstadoComponente)))

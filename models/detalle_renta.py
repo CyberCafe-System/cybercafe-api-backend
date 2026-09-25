@@ -21,7 +21,7 @@ class DetalleRentaBase(SQLModel):
 
 class DetalleRenta(DetalleRentaBase, table=True):
     __tablename__ = "detalle_renta" #type: ignore
-    renta_detalle_id: Optional[int] = Field(default=None, primary_key=True)
+    detalle_renta_id: Optional[int] = Field(default=None, primary_key=True)
 
 class DetalleRentaCreate(DetalleRentaBase):
     pass

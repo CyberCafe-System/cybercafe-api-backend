@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field, Column, Enum as SAEnum, Text
+from sqlmodel import SQLModel, Field
 from typing import Optional
 class CategoriaBase(SQLModel):
     nombre: str = Field(max_length=150)

@@ -22,7 +22,7 @@ async def create_usuario(datos: UsuarioCreate, session: SessionDeDependencia):
         raise HTTPException(status_code=400, detail="El usuario ya esta en uso")
    
     usuario = Usuario(**datos.model_dump())
-    usuario.password = get_password_hash(datos.password_hash)
+    usuario.password_hash = get_password_hash(datos.password_hash)
     session.add(usuario)
     session.commit()
     session.refresh(usuario)

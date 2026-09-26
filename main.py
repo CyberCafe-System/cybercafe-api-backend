@@ -1,6 +1,8 @@
 from fastapi import FastAPI, status
 from contextlib import asynccontextmanager
 from routers.usuario_router import router as usuario_router
+from oauth.oauth import router as oauth_router
+
 from config.db import crear_db_y_tablas
 import models
 
@@ -16,4 +18,6 @@ app.version = "0.0.1"
 @app.get("/", summary="Comprobando Api", status_code=status.HTTP_200_OK)
 async def home():
     return {"message": "ok"}
+
+app.include_router(oauth_router, tags=['oauth'])
 app.include_router(usuario_router, tags=["usuarios"])

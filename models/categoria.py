@@ -12,5 +12,7 @@ class Categoria(CategoriaBase, table=True):
 class CategoriaCreate(CategoriaBase):
     pass
 
-class CategoriaUpdate(CategoriaBase):
-    pass
+class CategoriaUpdate(SQLModel):
+    nombre: Optional[str] = Field(default=None, max_length=150)
+    descripcion: Optional[str] = Field(default=None, max_length=255)
+    activa: Optional[bool] = None

@@ -29,5 +29,14 @@ class Equipo(EquipoBase, table=True):
 class EquipoCreate(EquipoBase):
     pass
 
-class EquipoUpdate(EquipoBase):
-    pass
+class EquipoUpdate(SQLModel):
+    nombre: Optional[str] = Field(default=None, min_length=3, max_length=255)
+    descripcion: Optional[str] = Field(default=None, sa_column=Column(Text))
+    tarifa_por_hora: Optional[Decimal] = Field(
+        default=None,
+        max_digits=10,
+        decimal_places=2,
+    )
+    imagen: Optional[str] = Field(default=None, max_length=255)
+    tipo: Optional[TipoEquipo] = None
+    estado: Optional[EstadoEquipo] = None

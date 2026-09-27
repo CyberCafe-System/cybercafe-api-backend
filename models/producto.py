@@ -18,5 +18,11 @@ class Producto(ProductoBase, table=True):
 class ProductoCreate(ProductoBase):
     pass
 
-class ProductoUpdate(ProductoBase):
-    pass
+class ProductoUpdate(SQLModel):
+    categoria_id: Optional[int] = Field(default=None, foreign_key="categorias.categoria_id")
+    nombre: Optional[str] = Field(default=None, max_length=255)
+    precio_compra: Optional[Decimal] = Field(default=None, max_digits=10, decimal_places=2)
+    precio_venta: Optional[Decimal] = Field(default=None, max_digits=10, decimal_places=2)
+    cantidad: Optional[int] = None
+    imagen: Optional[str] = Field(default=None, max_length=255)
+    activo: Optional[bool] = None

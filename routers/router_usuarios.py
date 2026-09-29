@@ -8,7 +8,7 @@ from models.rol import Rol
 
 
 def validar_administrador(token: dict) -> None:
-    if token.get("id") != 1:
+    if token.get("id_rol") != 1:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el administrador puede acceder o modificar usuarios",
@@ -23,6 +23,8 @@ def validar_rol(session: SessionDeDependencia, id_rol: int) -> None:
 router = APIRouter()
 
 # Listar usuarios
+
+
 @router.get(
     "/usuarios",
     response_model=list[Usuario],
@@ -68,7 +70,8 @@ async def create_usuario(
 ):
     validar_administrador(token)
     if session.exec(select(Usuario).where(Usuario.username == datos.username)).first():
-        raise HTTPException(status_code=400, detail="El usuario ya esta en uso")
+        raise HTTPException(
+            status_code=400, detail="El usuario ya esta en uso")
 
     validar_rol(session, datos.rol_id)
     usuario = Usuario(**datos.model_dump())
@@ -103,13 +106,16 @@ async def update_usuario(
         )
 
     if session.exec(
-        select(Usuario).where(Usuario.username == datos.username, Usuario.usuario_id != id)
+        select(Usuario).where(Usuario.username ==
+                              datos.username, Usuario.usuario_id != id)
     ).first():
-        raise HTTPException(status_code=400, detail="El usuario ya esta en uso")
+        raise HTTPException(
+            status_code=400, detail="El usuario ya esta en uso")
 
     validar_rol(session, datos.rol_id)
     datos_actualizados = datos.model_dump()
-    datos_actualizados["password_hash"] = get_password_hash(datos.password_hash)
+    datos_actualizados["password_hash"] = get_password_hash(
+        datos.password_hash)
     for campo, valor in datos_actualizados.items():
         setattr(usuario, campo, valor)
 

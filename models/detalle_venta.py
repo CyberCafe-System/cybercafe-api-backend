@@ -6,7 +6,7 @@ class DetalleVentaBase(SQLModel):
     venta_id: int = Field(foreign_key="ventas.venta_id")
     producto_id: int = Field(foreign_key="productos.producto_id")
     precio_unitario: Decimal = Field(max_digits=10, decimal_places=2)
-    cantidad: int = Field(min_length=1)
+    cantidad: int = Field(ge=1)
     subtotal: Decimal = Field(max_digits=10, decimal_places=2)
 
 class DetalleVenta(DetalleVentaBase, table=True):

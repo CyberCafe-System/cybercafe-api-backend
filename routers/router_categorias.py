@@ -7,16 +7,13 @@ from models.categoria import Categoria, CategoriaCreate, CategoriaUpdate
 
 
 ROLES_CON_PERMISO_GESTION_CATEGORIAS = {1}
-USUARIOS_CON_PERMISO_LECTURA_CATEGORIAS = {2}
+ROLES_CON_PERMISO_LECTURA_CATEGORIAS = {1, 2, 3}
 
 router = APIRouter()
 
 
 def validar_permisos_lectura(token: dict) -> None:
-    if (
-        token.get("id_rol") not in ROLES_CON_PERMISO_GESTION_CATEGORIAS
-        and token.get("id") not in USUARIOS_CON_PERMISO_LECTURA_CATEGORIAS
-    ):
+    if token.get("id_rol") not in ROLES_CON_PERMISO_LECTURA_CATEGORIAS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para consultar categorías",

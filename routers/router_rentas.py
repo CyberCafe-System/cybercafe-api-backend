@@ -156,7 +156,7 @@ async def get_renta(
     detalles = session.exec(
         select(DetalleRenta).where(DetalleRenta.renta_id == renta_id)
     ).all()
-    return RentaConDetallesResponse(renta=renta, detalles=detalles)
+    return RentaConDetallesResponse(renta=renta, detalles=detalles) #type: ignore
 
 
 @router.post(
@@ -192,7 +192,7 @@ async def iniciar_renta(
     # 3. Crear cabecera de Renta
     renta = Renta(
         cliente_id=datos.cliente_id,
-        usuario_id=usuario_id,
+        usuario_id=usuario_id, #type: ignore
         fecha=ahora,
         total=subtotal,
         estado_de_pago=datos.estado_de_pago,
@@ -202,7 +202,7 @@ async def iniciar_renta(
 
     # 4. Crear DetalleRenta
     detalle_renta = DetalleRenta(
-        renta_id=renta.renta_id,
+        renta_id=renta.renta_id, #type: ignore
         equipo_id=datos.equipo_id,
         hora_inicio=ahora,
         tiempo_de_renta=datos.tiempo_de_renta,

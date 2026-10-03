@@ -169,7 +169,7 @@ async def create_revision(
 
     # 2. Resolver y validar usuario inspector (FK)
     usuario_id = datos.usuario_id or token.get("id")
-    validar_usuario(session, usuario_id)
+    validar_usuario(session, usuario_id) #type: ignore
 
     # 3. Comprobar si ya existe una revisión previa para este detalle_renta
     revision_existente = session.exec(

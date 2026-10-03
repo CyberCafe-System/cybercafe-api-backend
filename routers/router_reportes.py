@@ -328,6 +328,6 @@ async def get_productos_stock_bajo(
     consulta = (
         select(Producto)
         .where(Producto.activo == True, Producto.cantidad <= umbral)
-        .order_by(Producto.cantidad)
+        .order_by(Producto.cantidad) #type: ignore
     )
     return session.exec(consulta).all()

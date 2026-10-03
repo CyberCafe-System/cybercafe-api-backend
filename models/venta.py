@@ -20,9 +20,9 @@ class Venta(VentaBase, table=True):
     venta_id: Optional[int] = Field(default=None, primary_key=True)
 
 class VentaCreate(VentaBase):
-    usuario_id: Optional[int] = None
-    iva: Optional[Decimal] = None
-    subtotal: Optional[Decimal] = None
+    usuario_id: Optional[int] = None #type: ignore
+    iva: Optional[Decimal] = None #type: ignore
+    subtotal: Optional[Decimal] = None #type: ignore
 
 class VentaUpdate(SQLModel):
     cliente_id: Optional[int] = None

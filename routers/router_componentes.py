@@ -87,7 +87,7 @@ async def get_componentes(
     if equipo_id is not None:
         consulta = consulta.where(Componente.equipo_id == equipo_id)
     if sin_equipo is True:
-        consulta = consulta.where(Componente.equipo_id.is_(None))
+        consulta = consulta.where(Componente.equipo_id.is_(None)) #type: ignore
     if tipo is not None:
         consulta = consulta.where(Componente.tipo == tipo)
     if estado is not None:

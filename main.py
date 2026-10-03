@@ -7,6 +7,7 @@ from routers.router_categorias import router as categoria_router
 from routers.router_productos import router as productos_router
 from routers.router_clientes import router as cliente_router
 from routers.router_roles import router as rol_router
+from routers.router_componentes import router as componente_router
 from oauth.oauth import router as oauth_router
 
 from config.db import crear_db_y_tablas
@@ -39,5 +40,6 @@ app.include_router(rol_router, tags=["roles"])
 app.include_router(usuario_router, tags=["usuarios"])
 app.include_router(cliente_router, tags=["clientes"])
 app.include_router(equipo_router, tags=["equipos"])
+app.include_router(componente_router, tags=["componentes"])
 app.include_router(categoria_router, tags=["categorias"])
 app.include_router(productos_router, tags=["productos"])

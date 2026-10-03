@@ -10,37 +10,20 @@ from models.cliente import Cliente
 from models.detalle_venta import DetalleVenta, DetalleVentaCreate, DetalleVentaUpdate
 from models.producto import Producto
 from models.usuario import Usuario
-from models.venta import Venta, VentaCreate, VentaUpdate
+from models.venta import (
+    ItemVentaRequest,
+    RegistrarVentaRequest,
+    Venta,
+    VentaConDetallesResponse,
+    VentaCreate,
+    VentaUpdate,
+)
 
 
 ROLES_CON_PERMISO_VENTAS = {1, 2}
 ROLES_CON_PERMISO_ELIMINACION_VENTAS = {1}
 
 router = APIRouter()
-
-
-class ItemVentaRequest(SQLModel):
-    producto_id: int
-    cantidad: int = Field(ge=1, description="Cantidad a comprar")
-    precio_unitario: Optional[Decimal] = Field(
-        default=None, description="Precio unitario (si se omite, se usa el precio_venta del producto)"
-    )
-
-
-class RegistrarVentaRequest(SQLModel):
-    cliente_id: int
-    productos: list[ItemVentaRequest] = Field(
-        min_length=1, description="Lista de productos y cantidades a comprar"
-    )
-    tasa_iva: Decimal = Field(
-        default=Decimal("0.13"), description="Tasa de IVA aplicada (por defecto 0.13 = 13%)"
-    )
-
-
-class VentaConDetallesResponse(SQLModel):
-    venta: Venta
-    detalles: list[DetalleVenta]
-    total: Decimal
 
 
 def validar_permisos_ventas(token: dict) -> None:

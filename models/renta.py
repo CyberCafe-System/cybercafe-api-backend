@@ -3,6 +3,7 @@ from typing import Optional
 from enum import Enum
 from decimal import Decimal
 from datetime import datetime, timezone
+from models.detalle_renta import DetalleRenta
 
 class EstadoPago(str, Enum):
     PENDIENTE = "Pendiente"
@@ -31,3 +32,15 @@ class RentaUpdate(SQLModel):
     cliente_id: Optional[int] = None
     total: Optional[Decimal] = None
     estado_de_pago: Optional[EstadoPago] = None
+
+
+class IniciarRentaRequest(SQLModel):
+    cliente_id: int
+    equipo_id: int
+    tiempo_de_renta: int = Field(ge=15, description="Tiempo de uso en minutos (ej: 30, 60, 120)")
+    estado_de_pago: EstadoPago = Field(default=EstadoPago.PENDIENTE)
+
+
+class RentaConDetallesResponse(SQLModel):
+    renta: Renta
+    detalles: list[DetalleRenta]

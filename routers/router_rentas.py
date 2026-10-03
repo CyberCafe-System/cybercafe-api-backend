@@ -9,7 +9,14 @@ from config.session_dependencia import SessionDeDependencia
 from models.cliente import Cliente
 from models.detalle_renta import DetalleRenta, EstadoRenta
 from models.equipo import Equipo, EstadoEquipo
-from models.renta import EstadoPago, Renta, RentaCreate, RentaUpdate
+from models.renta import (
+    EstadoPago,
+    IniciarRentaRequest,
+    Renta,
+    RentaConDetallesResponse,
+    RentaCreate,
+    RentaUpdate,
+)
 from models.revision_equipo import RevisionEquipo
 from models.usuario import Usuario
 
@@ -19,18 +26,6 @@ ROLES_CON_PERMISO_GESTION_RENTAS = {1, 2}
 ROLES_CON_PERMISO_ELIMINACION_RENTAS = {1}
 
 router = APIRouter()
-
-
-class IniciarRentaRequest(SQLModel):
-    cliente_id: int
-    equipo_id: int
-    tiempo_de_renta: int = Field(ge=15, description="Tiempo de uso en minutos (ej: 30, 60, 120)")
-    estado_de_pago: EstadoPago = Field(default=EstadoPago.PENDIENTE)
-
-
-class RentaConDetallesResponse(SQLModel):
-    renta: Renta
-    detalles: list[DetalleRenta]
 
 
 def validar_permisos_lectura(token: dict) -> None:

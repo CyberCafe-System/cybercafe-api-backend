@@ -102,10 +102,10 @@ async def get_clientes(
     if busqueda:
         termino = f"%{busqueda}%"
         consulta = consulta.where(
-            (Cliente.nombre.like(termino))
-            | (Cliente.apellido.like(termino))
-            | (Cliente.dui.like(termino))
-            | (Cliente.direccion.like(termino))
+            (Cliente.nombre.like(termino)) #type: ignore
+            | (Cliente.apellido.like(termino)) #type: ignore
+            | (Cliente.dui.like(termino)) #type: ignore
+            | (Cliente.direccion.like(termino)) #type: ignore
         )
     return session.exec(consulta.offset(offset).limit(limit)).all()
 

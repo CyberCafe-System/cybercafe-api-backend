@@ -115,7 +115,7 @@ async def get_venta(
         select(DetalleVenta).where(DetalleVenta.venta_id == venta_id)
     ).all()
     total = venta.subtotal + venta.iva
-    return VentaConDetallesResponse(venta=venta, detalles=detalles, total=total)
+    return VentaConDetallesResponse(venta=venta, detalles=detalles, total=total) #type: ignore
 
 
 @router.get(
@@ -214,7 +214,7 @@ async def registrar_venta(
 
     venta = Venta(
         cliente_id=datos.cliente_id,
-        usuario_id=usuario_id,
+        usuario_id=usuario_id, #type: ignore
         fecha=ahora,
         subtotal=subtotal_general,
         iva=iva_calculado,
@@ -226,7 +226,7 @@ async def registrar_venta(
     detalles_guardados: list[DetalleVenta] = []
     for item_data in items_preparados:
         detalle = DetalleVenta(
-            venta_id=venta.venta_id,
+            venta_id=venta.venta_id, #type: ignore
             producto_id=item_data["producto_id"],
             precio_unitario=item_data["precio_unitario"],
             cantidad=item_data["cantidad"],

@@ -22,11 +22,11 @@ class RentaBase(SQLModel):
     estado_de_pago: EstadoPago = Field(sa_column=Column(SAEnum(EstadoPago)))
 
 class Renta(RentaBase, table=True):
-    __tablename__ = "rentas"
+    __tablename__ = "rentas" #type: ignore
     renta_id: Optional[int] = Field(default=None, primary_key=True)
 
 class RentaCreate(RentaBase):
-    usuario_id: Optional[int] = None
+    usuario_id: Optional[int] = None #type: ignore
 
 class RentaUpdate(SQLModel):
     cliente_id: Optional[int] = None

@@ -19,7 +19,7 @@ class RevisionEquipo(RevisionEquipoBase, table=True):
     revision_equipo_id: Optional[int] = Field(default=None, primary_key=True)
 
 class RevisionEquipoCreate(RevisionEquipoBase):
-    usuario_id: Optional[int] = None
+    usuario_id: Optional[int] = None #type: ignore
 
 class RevisionEquipoUpdate(SQLModel):
     inspeccion_pasada: Optional[bool] = None

@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, status, HTTPException
 from config.session_dependencia import SessionDeDependencia
 from sqlmodel import select
@@ -17,17 +18,36 @@ async def login(form_data: OAuth2FormDeDependencia, session: SessionDeDependenci
     usuario = session.exec(consulta).first()
 
     if not usuario:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="username o password incorrectos")
-        
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="username o password incorrectos",
+        )
+
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El usuario se encuentra inactivo",
+        )
+
     # verifica que la contraseña ingresada por el usuario sea correcta
-    # comparándola con la contraseña almacenada en la base de datos
-    if not verify_password(form_data.password, usuario.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="username o password incorrectos")
-        
+    if not verify_password(form_data.password, usuario.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="username o password incorrectos",
+        )
+
+    # Actualiza last_login al momento actual
+    usuario.last_login = datetime.now(timezone.utc)
+    session.add(usuario)
+    session.commit()
+    session.refresh(usuario)
+
     token = create_access_token(
-        data={"id": usuario.usuario_id, "username": usuario.username, 'id_rol': usuario.rol_id})
-    # retorna el access token y el tipo de token (bearer) en formato JSON esto es un estandar
-    # e seguridad para la autenticacion de usuarios siempre se debe retornar de esta manera
+        data={
+            "id": usuario.usuario_id,
+            "username": usuario.username,
+            "id_rol": usuario.rol_id,
+            "is_superuser": usuario.is_superuser,
+        }
+    )
     return {"access_token": token, "token_type": "bearer"}

@@ -24,7 +24,12 @@ class DetalleRenta(DetalleRentaBase, table=True):
     detalle_renta_id: Optional[int] = Field(default=None, primary_key=True)
 
 class DetalleRentaCreate(DetalleRentaBase):
-    pass
+    hora_inicio: Optional[datetime] = None #type: ignore
+    subtotal: Optional[Decimal] = None #type: ignore
+    estado: Optional[EstadoRenta] = EstadoRenta.ACTIVA #type: ignore
 
-class DetalleRentaUpdate(DetalleRentaBase):
-    pass
+class DetalleRentaUpdate(SQLModel):
+    tiempo_agregado: Optional[int] = None
+    hora_fin: Optional[datetime] = None
+    subtotal: Optional[Decimal] = None
+    estado: Optional[EstadoRenta] = None

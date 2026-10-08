@@ -92,7 +92,9 @@ def inicializar_datos_semilla():
                     nombre="Administrador",
                     username="admin",
                     correo="admin@cybercafe.com",
-                    password_hash=get_password_hash(default_admin_pass),
+                    password=get_password_hash(default_admin_pass),
+                    is_superuser=True,
+                    last_login=None,
                     activo=True,
                 )
                 session.add(admin_user)

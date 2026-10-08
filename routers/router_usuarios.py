@@ -28,7 +28,7 @@ router = APIRouter()
 @router.get(
     "/usuarios",
     response_model=list[Usuario],
-    response_model_exclude={"password_hash"},
+    response_model_exclude={"password"},
     status_code=status.HTTP_200_OK,
 )
 async def get_usuarios(
@@ -45,7 +45,7 @@ async def get_usuarios(
 @router.get(
     "/usuarios/{id}",
     response_model=Usuario,
-    response_model_exclude={"password_hash"},
+    response_model_exclude={"password"},
     status_code=status.HTTP_200_OK,
 )
 async def get_usuario(id: int, session: SessionDeDependencia, token: Token_Dependencia):
@@ -60,7 +60,7 @@ async def get_usuario(id: int, session: SessionDeDependencia, token: Token_Depen
 @router.post(
     "/usuarios",
     response_model=Usuario,
-    response_model_exclude={"password_hash"},
+    response_model_exclude={"password"},
     status_code=status.HTTP_201_CREATED,
 )
 async def create_usuario(
@@ -74,8 +74,15 @@ async def create_usuario(
             status_code=400, detail="El usuario ya esta en uso")
 
     validar_rol(session, datos.rol_id)
-    usuario = Usuario(**datos.model_dump())
-    usuario.password_hash = get_password_hash(datos.password_hash)
+    usuario_data = datos.model_dump()
+    usuario_data["password"] = get_password_hash(datos.password)
+    # Regla: Si el rol es Administrador (rol_id == 1), is_superuser debe ser True
+    if datos.rol_id == 1 or datos.is_superuser is True:
+        usuario_data["is_superuser"] = True
+    else:
+        usuario_data["is_superuser"] = False
+
+    usuario = Usuario(**usuario_data)
     session.add(usuario)
     session.commit()
     session.refresh(usuario)
@@ -86,7 +93,7 @@ async def create_usuario(
 @router.put(
     "/usuarios/{id}",
     response_model=Usuario,
-    response_model_exclude={"password_hash"},
+    response_model_exclude={"password"},
     status_code=status.HTTP_200_OK,
 )
 async def update_usuario(
@@ -99,23 +106,33 @@ async def update_usuario(
     usuario = session.get(Usuario, id)
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    if token.get("id") == id and not datos.activo:
+    if token.get("id") == id and datos.activo is False:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No puedes desactivar tu propio usuario",
         )
 
-    if session.exec(
-        select(Usuario).where(Usuario.username ==
-                              datos.username, Usuario.usuario_id != id)
+    if datos.username and session.exec(
+        select(Usuario).where(Usuario.username == datos.username, Usuario.usuario_id != id)
     ).first():
         raise HTTPException(
             status_code=400, detail="El usuario ya esta en uso")
 
-    validar_rol(session, datos.rol_id)
-    datos_actualizados = datos.model_dump()
-    datos_actualizados["password_hash"] = get_password_hash(
-        datos.password_hash)
+    if datos.rol_id is not None:
+        validar_rol(session, datos.rol_id)
+
+    datos_actualizados = datos.model_dump(exclude_unset=True)
+    if "password" in datos_actualizados and datos_actualizados["password"]:
+        datos_actualizados["password"] = get_password_hash(datos_actualizados["password"])
+    elif "password" in datos_actualizados:
+        del datos_actualizados["password"]
+
+    nuevo_rol_id = datos_actualizados.get("rol_id", usuario.rol_id)
+    if nuevo_rol_id == 1:
+        datos_actualizados["is_superuser"] = True
+    elif "is_superuser" not in datos_actualizados and usuario.rol_id == 1 and nuevo_rol_id != 1:
+        datos_actualizados["is_superuser"] = False
+
     for campo, valor in datos_actualizados.items():
         setattr(usuario, campo, valor)
 
@@ -129,7 +146,7 @@ async def update_usuario(
 @router.patch(
     "/usuarios/{id}/desactivar",
     response_model=Usuario,
-    response_model_exclude={"password_hash"},
+    response_model_exclude={"password"},
     status_code=status.HTTP_200_OK,
 )
 async def desactivar_usuario(

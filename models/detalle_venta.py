@@ -14,7 +14,10 @@ class DetalleVenta(DetalleVentaBase, table=True):
     detalle_venta_id: Optional[int] = Field(default=None, primary_key=True)
 
 class DetalleVentaCreate(DetalleVentaBase):
-    pass
+    precio_unitario: Optional[Decimal] = None #type: ignore
+    subtotal: Optional[Decimal] = None #type: ignore
 
-class DetalleVentaUpdate(DetalleVentaBase):
-    pass
+class DetalleVentaUpdate(SQLModel):
+    cantidad: Optional[int] = None
+    precio_unitario: Optional[Decimal] = None
+    subtotal: Optional[Decimal] = None

@@ -10,3 +10,10 @@ from models.revision_equipo import RevisionEquipo
 from models.rol import Rol
 from models.usuario import Usuario
 from models.venta import Venta
+from models.reporte import (
+    EquipoTopResponse,
+    ProductoTopResponse,
+    ReporteRangoFechasResponse,
+    ResumenDiarioResponse,
+    ResumenGeneralResponse,
+)

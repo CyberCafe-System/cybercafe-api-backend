@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Request, status, HTTPException
+from fastapi import APIRouter, Request, Depends, status, HTTPException
 from config.session_dependencia import SessionDeDependencia
 from sqlmodel import select
 from models.usuario import Usuario
 from librerias.pwd import verify_password
 from librerias.rate_limiter import login_rate_limiter
-from config.security import create_access_token
-from config.security_dependencia import OAuth2FormDeDependencia
+from librerias.token_blacklist import token_blacklist
+from config.security import create_access_token, decode_access_token, oauth2_scheme
+from config.security_dependencia import OAuth2FormDeDependencia, Admin_Token_Dependencia
 
 router = APIRouter()
 
@@ -75,3 +76,38 @@ async def login(
         }
     )
     return {"access_token": token, "token_type": "bearer"}
+
+
+@router.post("/oauth/logout", status_code=status.HTTP_200_OK)
+async def logout(token: str = Depends(oauth2_scheme)):
+    """
+    Cierra la sesión del usuario revocando el token actual.
+    El token revocado no podrá ser utilizado nuevamente en ninguna petición.
+    """
+    info_usuario = {}
+    try:
+        payload = decode_access_token(token)
+        exp = payload.get("exp", 0)
+        info_usuario = {
+            "username": payload.get("username"),
+            "id": payload.get("id"),
+            "id_rol": payload.get("id_rol"),
+        }
+    except Exception:
+        exp = 0
+
+    token_blacklist.revocar_token(token, exp, info_usuario)
+    return {"message": "Sesión cerrada exitosamente"}
+
+
+@router.get("/oauth/tokens-revocados", status_code=status.HTTP_200_OK)
+async def get_tokens_revocados(admin: Admin_Token_Dependencia):
+    """
+    Lista todos los tokens actualmente revocados (en blacklist).
+    Requiere permisos de Administrador (id_rol = 1).
+    """
+    tokens = token_blacklist.listar_tokens_revocados()
+    return {
+        "total": len(tokens),
+        "tokens_revocados": tokens,
+    }

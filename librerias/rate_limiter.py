@@ -12,22 +12,35 @@ load_dotenv()
 class LoginRateLimiter:
     """
     Controlador de límite de intentos para inicio de sesión en memoria y seguro para hilos.
-    Permite bloquear temporalmente un usuario/IP si excede el número máximo de intentos fallidos.
+    Permite bloquear temporalmente un usuario/IP si excede el número máximo de intentos fallidos,
+    con incremento progresivo/exponencial del tiempo de espera en bloqueos consecutivos.
     """
 
     def __init__(
         self,
         max_attempts: Optional[int] = None,
         lockout_seconds: Optional[int] = None,
+        max_lockout_seconds: Optional[int] = None,
+        lockout_multiplier: Optional[float] = None,
+        escalation_window: Optional[int] = None,
     ):
         # Lee configuración de variables de entorno con valores por defecto
         if max_attempts is None:
-            max_attempts = int(os.getenv("LOGIN_MAX_ATTEMPTS", "7"))
+            max_attempts = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
         if lockout_seconds is None:
-            lockout_seconds = int(os.getenv("LOGIN_LOCKOUT_SECONDS", "30"))
+            lockout_seconds = int(os.getenv("LOGIN_LOCKOUT_SECONDS", "120"))
+        if max_lockout_seconds is None:
+            max_lockout_seconds = int(os.getenv("LOGIN_MAX_LOCKOUT_SECONDS", "3600"))
+        if lockout_multiplier is None:
+            lockout_multiplier = float(os.getenv("LOGIN_LOCKOUT_MULTIPLIER", "2.0"))
+        if escalation_window is None:
+            escalation_window = int(os.getenv("LOGIN_ESCALATION_RESET_SECONDS", "1800"))
 
         self.max_attempts = max_attempts
         self.lockout_seconds = lockout_seconds
+        self.max_lockout_seconds = max_lockout_seconds
+        self.lockout_multiplier = lockout_multiplier
+        self.escalation_window = escalation_window
         self._records: dict[str, dict] = {}
         self._lock = threading.Lock()
 
@@ -63,15 +76,23 @@ class LoginRateLimiter:
                 remaining = max(1, math.ceil(locked_until - now))
                 return True, remaining
 
-            # Si ya expiró el tiempo de bloqueo, reinicia los intentos
+            # Si ya expiró el tiempo de bloqueo previo:
+            # Reseteamos los intentos del ciclo para permitir un nuevo ciclo de intentos
             if record.get("attempts", 0) >= self.max_attempts:
-                self._records.pop(key, None)
+                record["attempts"] = 0
+                record["locked_until"] = 0
+
+            # Si transcurrió la ventana de escalamiento sin actividad, resetea el nivel de penalización
+            if now - record.get("last_attempt", 0) > self.escalation_window:
+                record["lockout_count"] = 0
+
             return False, 0
 
     def record_failure(self, key: str) -> Tuple[int, bool, int]:
         """
         Registra un intento fallido para la clave dada.
-        Retorna (intentos_actuales, esta_bloqueado, segundos_restantes).
+        Si alcanza el límite de intentos, calcula el tiempo de espera con aumento progresivo.
+        Retorna (intentos_actuales, esta_bloqueado, segundos_de_espera).
         """
         now = time.time()
         with self._lock:
@@ -79,26 +100,43 @@ class LoginRateLimiter:
 
             record = self._records.setdefault(
                 key,
-                {"attempts": 0, "locked_until": 0, "last_attempt": now},
+                {
+                    "attempts": 0,
+                    "locked_until": 0,
+                    "last_attempt": now,
+                    "lockout_count": 0,
+                },
             )
 
-            # Si el bloqueo previo ya pasó, resetea
+            # Si el bloqueo previo ya terminó, reset de intentos del ciclo
             if record["locked_until"] > 0 and record["locked_until"] <= now:
                 record["attempts"] = 0
                 record["locked_until"] = 0
+
+            # Si pasó la ventana de escalamiento sin fallos, reiniciar conteo de bloqueos
+            if now - record.get("last_attempt", 0) > self.escalation_window:
+                record["lockout_count"] = 0
 
             record["attempts"] += 1
             record["last_attempt"] = now
 
             if record["attempts"] >= self.max_attempts:
-                record["locked_until"] = now + self.lockout_seconds
-                return record["attempts"], True, self.lockout_seconds
+                record["lockout_count"] = record.get("lockout_count", 0) + 1
+                exponent = max(0, record["lockout_count"] - 1)
+                wait_time = int(
+                    min(
+                        self.lockout_seconds * (self.lockout_multiplier ** exponent),
+                        self.max_lockout_seconds,
+                    )
+                )
+                record["locked_until"] = now + wait_time
+                return record["attempts"], True, wait_time
 
             return record["attempts"], False, 0
 
     def record_success(self, key: str) -> None:
         """
-        Reinicia el contador de intentos ante un inicio de sesión exitoso.
+        Reinicia completamente los intentos y el nivel de bloqueo ante un inicio de sesión exitoso.
         """
         with self._lock:
             self._records.pop(key, None)
@@ -114,11 +152,10 @@ class LoginRateLimiter:
         """
         Elimina entradas antiguas para evitar acumulación innecesaria en memoria.
         """
-        # Solo limpia si hay más de 500 registros almacenados
         if len(self._records) < 500:
             return
 
-        stale_threshold = max(self.lockout_seconds * 2, 300)
+        stale_threshold = max(self.escalation_window, 1800)
         keys_to_remove = [
             k
             for k, v in self._records.items()

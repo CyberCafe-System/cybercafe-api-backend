@@ -5,6 +5,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 import os
+from librerias.token_blacklist import token_blacklist
 
 load_dotenv()
 
@@ -33,6 +34,13 @@ def decode_access_token(token: str):
 def get_current_user(token: str = Depends(oauth2_scheme)):
     credencial_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado ", headers={"WWW-Authenticate": "Bearer"})
+
+    if token_blacklist.esta_revocado(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token revocado. La sesión ha sido cerrada.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     try:
         payload = decode_access_token(token)

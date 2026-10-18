@@ -11,7 +11,7 @@ load_dotenv()
 
 SECRET_KEY_TOKEN = os.getenv("SECRET_KEY_TOKEN", "123456789")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="oauth/login")
 

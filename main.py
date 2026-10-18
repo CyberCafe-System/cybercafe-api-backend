@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -17,14 +19,25 @@ from oauth.oauth import router as oauth_router
 from config.db import crear_db_y_tablas
 import models
 
+load_dotenv()
+
+# Entorno de la aplicación ('development' o 'production')
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").strip().lower()
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     crear_db_y_tablas()
     yield
 
-app = FastAPI(lifespan=lifespan)
-app.title = "CyberCafe API"
-app.version = "1.0.0"
+app = FastAPI(
+    lifespan=lifespan,
+    title="CyberCafe API",
+    version="1.0.0",
+    docs_url=None if IS_PRODUCTION else "/docs",
+    redoc_url=None if IS_PRODUCTION else "/redoc",
+    openapi_url=None if IS_PRODUCTION else "/openapi.json",
+)
 
 # Configuración de CORS para permitir solicitudes desde el frontend (Web POS, Flutter, etc.)
 app.add_middleware(

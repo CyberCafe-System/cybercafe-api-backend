@@ -21,9 +21,9 @@ import models
 
 load_dotenv()
 
-# Entorno de la aplicación ('development' o 'production')
+# Solo se habilita la documentación si el entorno es explícitamente 'development' o 'dev'
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production").strip().lower()
-IS_PRODUCTION = ENVIRONMENT == "production"
+HABILITAR_DOCS = ENVIRONMENT in ("development", "dev", "local")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,9 +34,9 @@ app = FastAPI(
     lifespan=lifespan,
     title="CyberCafe API",
     version="1.0.0",
-    docs_url=None if IS_PRODUCTION else "/docs",
-    redoc_url=None if IS_PRODUCTION else "/redoc",
-    openapi_url=None if IS_PRODUCTION else "/openapi.json",
+    docs_url="/docs" if HABILITAR_DOCS else None,
+    redoc_url="/redoc" if HABILITAR_DOCS else None,
+    openapi_url="/openapi.json" if HABILITAR_DOCS else None,
 )
 
 # Configuración de CORS para permitir solicitudes desde el frontend (Web POS, Flutter, etc.)

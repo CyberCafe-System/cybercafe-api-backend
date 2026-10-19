@@ -17,6 +17,7 @@ class EstadoComponente(str, Enum):
 class ComponenteBase(SQLModel):
     equipo_id: Optional[int] = Field(default=None, foreign_key="equipos.equipo_id")
     nombre: str = Field(nullable=False, min_length=3, max_length=255)
+    numero_serie: Optional[str] = Field(default=None, max_length=100)
     tipo: TipoComponente = Field(sa_column=Column(SAEnum(TipoComponente)))
     estado: EstadoComponente = Field(sa_column=Column(SAEnum(EstadoComponente)))
     descripcion: Optional[str] = Field(default=None, sa_column=Column(Text))

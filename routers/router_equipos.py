@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 
-from config.security_dependencia import Token_Dependencia
+from config.security_dependencia import (
+    Asistente_Token_Dependencia,
+    Token_Dependencia,
+)
 from config.session_dependencia import SessionDeDependencia
 from config.security import get_current_user
-from models.equipo import Equipo, EquipoCreate, EquipoUpdate
+from models.equipo import Equipo, EquipoCreate, EquipoUpdate, EstadoEquipo
 
 
 ROLES_CON_PERMISO_GESTION_EQUIPOS = {1}
@@ -128,6 +131,33 @@ async def patch_equipo(
     for campo, valor in datos_actualizados.items():
         setattr(equipo, campo, valor)
 
+    session.add(equipo)
+    session.commit()
+    session.refresh(equipo)
+    return equipo
+
+
+@router.patch(
+    "/equipos/{equipo_id}/estado",
+    response_model=Equipo,
+    status_code=status.HTTP_200_OK,
+)
+async def cambiar_estado_equipo(
+    equipo_id: int,
+    nuevo_estado: EstadoEquipo,
+    session: SessionDeDependencia,
+    token: Asistente_Token_Dependencia,
+):
+    """
+    Habilita un equipo o lo marca con daños tras una inspección técnica.
+
+    Permite al Asistente (rol_id = 3) o al Administrador (rol_id = 1) asignar
+    cualquiera de los estados operativos del equipo: Disponible, Daños menores,
+    Defectuoso o En mantenimiento.
+    """
+    equipo = obtener_equipo(session, equipo_id)
+
+    equipo.estado = nuevo_estado
     session.add(equipo)
     session.commit()
     session.refresh(equipo)

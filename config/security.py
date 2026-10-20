@@ -66,3 +66,23 @@ def get_admin_user(current_user: dict = Depends(get_current_user)):
             detail="No tienes permisos para realizar esta operación",
         )
     return current_user
+
+
+ROLES_CON_PERMISO_ASISTENTE = {1, 3}
+
+
+def verificar_permisos_asistente(current_user: dict = Depends(get_current_user)):
+    """
+    Autoriza las operaciones de soporte técnico operativo.
+
+    Permite el acceso al Asistente (rol_id = 3), responsable de las revisiones de
+    equipo, el reporte de fallas en componentes, el cambio de estado de equipos y
+    el monitoreo de rentas activas; y al Administrador (rol_id = 1) que conserva
+    acceso total al sistema.
+    """
+    if current_user.get("id_rol") not in ROLES_CON_PERMISO_ASISTENTE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el asistente o el administrador pueden realizar esta operación",
+        )
+    return current_user

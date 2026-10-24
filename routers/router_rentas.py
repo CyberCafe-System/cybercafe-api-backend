@@ -145,6 +145,79 @@ async def get_rentas(
 
 
 @router.get(
+    "/rentas/activas",
+    response_model=list[RentaActivaResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_rentas_activas(
+    session: SessionDeDependencia,
+    token: Asistente_Token_Dependencia,
+):
+    """
+    Monitorea las computadoras y consolas en uso, calculando el tiempo restante
+    en vivo de cada sesión activa.
+
+    Acceso exclusivo del Asistente (rol_id = 3) y del Administrador (rol_id = 1).
+    """
+    detalles = session.exec(
+        select(DetalleRenta).where(DetalleRenta.estado == EstadoRenta.ACTIVA)
+    ).all()
+
+    ahora = datetime.now(timezone.utc)
+    resultado: list[RentaActivaResponse] = []
+
+    for detalle in detalles:
+        tiempo_total = detalle.tiempo_de_renta + (detalle.tiempo_agregado or 0)
+        # Normaliza hora_inicio a UTC consciente para el cálculo del transcurso
+        hora_inicio = detalle.hora_inicio
+        if hora_inicio.tzinfo is None:
+            hora_inicio = hora_inicio.replace(tzinfo=timezone.utc)
+
+        transcurridos = int((ahora - hora_inicio).total_seconds() // 60)
+        resultado.append(
+            RentaActivaResponse(
+                detalle_renta_id=detalle.detalle_renta_id, #type: ignore
+                renta_id=detalle.renta_id,
+                equipo_id=detalle.equipo_id,
+                hora_inicio=detalle.hora_inicio,
+                hora_fin=detalle.hora_fin,
+                tiempo_de_renta=detalle.tiempo_de_renta,
+                tiempo_agregado=detalle.tiempo_agregado,
+                tiempo_total=tiempo_total,
+                minutos_transcurridos=transcurridos,
+                minutos_restantes=max(tiempo_total - transcurridos, 0),
+                subtotal=detalle.subtotal,
+                estado=detalle.estado.value,
+            )
+        )
+
+    return resultado
+
+
+@router.get(
+    "/rentas/pendientes-revision",
+    response_model=list[DetalleRenta],
+    status_code=status.HTTP_200_OK,
+)
+async def get_rentas_pendientes_revision(
+    session: SessionDeDependencia,
+    token: Asistente_Token_Dependencia,
+):
+    """
+    Lista las sesiones ya finalizadas por el cajero que esperan la inspección
+    física del asistente (estado 'Pendiente Revision').
+
+    Acceso exclusivo del Asistente (rol_id = 3) y del Administrador (rol_id = 1).
+    """
+    detalles = session.exec(
+        select(DetalleRenta).where(
+            DetalleRenta.estado == EstadoRenta.PENDIENTE_REVISION
+        )
+    ).all()
+    return detalles
+
+
+@router.get(
     "/rentas/{renta_id}",
     response_model=RentaConDetallesResponse,
     status_code=status.HTTP_200_OK,
@@ -244,78 +317,6 @@ async def actualizar_estado_pago(
     session.refresh(renta)
     return renta
 
-
-@router.get(
-    "/rentas/activas",
-    response_model=list[RentaActivaResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def get_rentas_activas(
-    session: SessionDeDependencia,
-    token: Asistente_Token_Dependencia,
-):
-    """
-    Monitorea las computadoras y consolas en uso, calculando el tiempo restante
-    en vivo de cada sesión activa.
-
-    Acceso exclusivo del Asistente (rol_id = 3) y del Administrador (rol_id = 1).
-    """
-    detalles = session.exec(
-        select(DetalleRenta).where(DetalleRenta.estado == EstadoRenta.ACTIVA)
-    ).all()
-
-    ahora = datetime.now(timezone.utc)
-    resultado: list[RentaActivaResponse] = []
-
-    for detalle in detalles:
-        tiempo_total = detalle.tiempo_de_renta + (detalle.tiempo_agregado or 0)
-        # Normaliza hora_inicio a UTC consciente para el cálculo del transcurso
-        hora_inicio = detalle.hora_inicio
-        if hora_inicio.tzinfo is None:
-            hora_inicio = hora_inicio.replace(tzinfo=timezone.utc)
-
-        transcurridos = int((ahora - hora_inicio).total_seconds() // 60)
-        resultado.append(
-            RentaActivaResponse(
-                detalle_renta_id=detalle.detalle_renta_id, #type: ignore
-                renta_id=detalle.renta_id,
-                equipo_id=detalle.equipo_id,
-                hora_inicio=detalle.hora_inicio,
-                hora_fin=detalle.hora_fin,
-                tiempo_de_renta=detalle.tiempo_de_renta,
-                tiempo_agregado=detalle.tiempo_agregado,
-                tiempo_total=tiempo_total,
-                minutos_transcurridos=transcurridos,
-                minutos_restantes=max(tiempo_total - transcurridos, 0),
-                subtotal=detalle.subtotal,
-                estado=detalle.estado.value,
-            )
-        )
-
-    return resultado
-
-
-@router.get(
-    "/rentas/pendientes-revision",
-    response_model=list[DetalleRenta],
-    status_code=status.HTTP_200_OK,
-)
-async def get_rentas_pendientes_revision(
-    session: SessionDeDependencia,
-    token: Asistente_Token_Dependencia,
-):
-    """
-    Lista las sesiones ya finalizadas por el cajero que esperan la inspección
-    física del asistente (estado 'Pendiente Revision').
-
-    Acceso exclusivo del Asistente (rol_id = 3) y del Administrador (rol_id = 1).
-    """
-    detalles = session.exec(
-        select(DetalleRenta).where(
-            DetalleRenta.estado == EstadoRenta.PENDIENTE_REVISION
-        )
-    ).all()
-    return detalles
 
 
 @router.get(

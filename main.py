@@ -64,3 +64,8 @@ app.include_router(revision_router, tags=["revisiones_equipo"])
 app.include_router(categoria_router, tags=["categorias"])
 app.include_router(productos_router, tags=["productos"])
 app.include_router(reporte_router, tags=["reportes"])
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run("main:app", host="127.0.0.1", port=port, reload=True)

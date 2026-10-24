@@ -44,3 +44,20 @@ class IniciarRentaRequest(SQLModel):
 class RentaConDetallesResponse(SQLModel):
     renta: Renta
     detalles: list[DetalleRenta]
+
+
+class RentaActivaResponse(SQLModel):
+    """Sesión de renta activa con el tiempo restante calculado en vivo."""
+
+    detalle_renta_id: int
+    renta_id: int
+    equipo_id: int
+    hora_inicio: datetime
+    hora_fin: Optional[datetime] = None
+    tiempo_de_renta: int
+    tiempo_agregado: Optional[int] = None
+    tiempo_total: int
+    minutos_transcurridos: int
+    minutos_restantes: int
+    subtotal: Decimal
+    estado: str

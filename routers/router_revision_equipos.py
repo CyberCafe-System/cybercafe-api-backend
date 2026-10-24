@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 
-from config.security_dependencia import Token_Dependencia
+from config.security_dependencia import (
+    Asistente_Token_Dependencia,
+    Token_Dependencia,
+)
 from config.session_dependencia import SessionDeDependencia
 from models.detalle_renta import DetalleRenta, EstadoRenta
 from models.equipo import Equipo, EstadoEquipo
@@ -155,17 +158,37 @@ async def get_revision_por_detalle_renta(
 async def create_revision(
     datos: RevisionEquipoCreate,
     session: SessionDeDependencia,
-    token: Token_Dependencia,
+    token: Asistente_Token_Dependencia,
     estado_si_daniado: EstadoEquipo = Query(
         EstadoEquipo.DANIOS_MENORES,
         description="Estado asignado al equipo si la inspección no pasa (por defecto Daños menores)",
     ),
 ):
-    """Registra la inspección física pos-renta y actualiza automáticamente los estados del equipo y de la renta."""
-    validar_permisos_gestion(token)
+    """
+    Registra la inspección física pos-renta y actualiza de forma atómica los
+    estados del equipo y de la sesión de renta.
+
+    Regla de negocio: solo se puede inspeccionar un detalle de renta que esté en
+    estado 'Pendiente Revision' (es decir, una sesión ya finalizada por el cajero
+    que espera la verificación del asistente). Una renta todavía 'Activa' o ya
+    'Finalizada' no puede revisarse.
+
+    La dependencia `Asistente_Token_Dependencia` garantiza que solo el Asistente
+    (rol_id = 3) o el Administrador (rol_id = 1) ejecuten esta operación.
+    """
 
     # 1. Validar existencia del detalle de renta (FK)
     detalle_renta = validar_detalle_renta(session, datos.detalle_renta_id)
+
+    # 1.1 Regla de negocio: la renta debe estar Pendiente Revision para poder revisarse
+    if detalle_renta.estado != EstadoRenta.PENDIENTE_REVISION:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "La renta debe estar en estado 'Pendiente Revision' para poder "
+                f"revisarse. Estado actual: {detalle_renta.estado.value}"
+            ),
+        )
 
     # 2. Resolver y validar usuario inspector (FK)
     usuario_id = datos.usuario_id or token.get("id")
@@ -210,7 +233,21 @@ async def create_revision(
     session.add(equipo)
     session.add(detalle_renta)
 
-    session.commit()
+    # 7. Confirmación transaccional atómica.
+    # Las tres entidades (revision, equipo, detalle_renta) pertenecen a la MISMA
+    # sesión de base de datos (`SessionDeDependencia`) y sólo se persisten juntas
+    # al ejecutar un único `commit()`. Si cualquier escritura falla, se revierte
+    # TODO con `rollback()`, evitando estados inconsistentes (p. ej. una revisión
+    # registrada sin que el equipo haya cambiado de estado).
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo registrar la revisión; la transacción fue revertida",
+        )
+
     session.refresh(revision)
     return revision
 

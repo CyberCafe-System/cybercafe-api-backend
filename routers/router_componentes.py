@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 
-from config.security_dependencia import Token_Dependencia
+from config.security_dependencia import (
+    Asistente_Token_Dependencia,
+    Token_Dependencia,
+)
 from config.session_dependencia import SessionDeDependencia
 from models.componente import (
     Componente,
@@ -208,10 +211,9 @@ async def cambiar_estado_componente(
     componente_id: int,
     nuevo_estado: EstadoComponente,
     session: SessionDeDependencia,
-    token: Token_Dependencia,
+    token: Asistente_Token_Dependencia,
 ):
     """Permite al asistente o admin actualizar rápidamente el estado de salud de un componente."""
-    validar_permisos_gestion(token)
     componente = obtener_componente(session, componente_id)
 
     componente.estado = nuevo_estado

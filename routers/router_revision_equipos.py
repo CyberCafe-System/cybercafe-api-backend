@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 
@@ -6,6 +7,7 @@ from config.security_dependencia import (
     Token_Dependencia,
 )
 from config.session_dependencia import SessionDeDependencia
+from models.componente import Componente, EstadoComponente
 from models.detalle_renta import DetalleRenta, EstadoRenta
 from models.equipo import Equipo, EstadoEquipo
 from models.revision_equipo import (
@@ -215,10 +217,12 @@ async def create_revision(
         )
 
     # 5. Crear el registro de revisión
-    datos_dict = datos.model_dump()
+    componentes_input = datos.componentes_afectados
+    datos_dict = datos.model_dump(exclude={"componentes_afectados"})
     datos_dict["usuario_id"] = usuario_id
     revision = RevisionEquipo(**datos_dict)
     session.add(revision)
+    session.flush()  # Genera revision.revision_equipo_id de inmediato
 
     # 6. Actualización sincronizada de estados de negocio
     if datos.inspeccion_pasada:
@@ -229,6 +233,43 @@ async def create_revision(
         # Si no pasó, el equipo se marca con daños y queda bloqueado para renta
         equipo.estado = estado_si_daniado
         detalle_renta.estado = EstadoRenta.FINALIZADA
+
+        # Formatear y actualizar revisiones en componentes afectados de forma acumulativa
+        if componentes_input:
+            fecha_str = (revision.fecha_revision or datetime.now()).strftime("%d/%m/%Y %H:%M")
+            for item in componentes_input:
+                comp_obj = None
+                if item.componente_id:
+                    comp_obj = session.get(Componente, item.componente_id)
+                elif item.nombre:
+                    comp_obj = session.exec(
+                        select(Componente).where(
+                            Componente.equipo_id == equipo.equipo_id,
+                            Componente.nombre == item.nombre,
+                        )
+                    ).first()
+
+                if comp_obj:
+                    if item.estado:
+                        try:
+                            comp_obj.estado = EstadoComponente(item.estado)
+                        except Exception:
+                            comp_obj.estado = EstadoComponente.DANIOS_MENORES
+                    else:
+                        comp_obj.estado = EstadoComponente.DANIOS_MENORES
+
+                    estado_label = comp_obj.estado.value if hasattr(comp_obj.estado, "value") else str(comp_obj.estado)
+                    detalle_falla = item.descripcion_danio or datos.observaciones or "Reportado con novedades en inspección técnica"
+                    bloque_historial = (
+                        f"[REVISIÓN: #{revision.revision_equipo_id} | FECHA: {fecha_str}]\n"
+                        f"Descripción: {detalle_falla}\n"
+                        f"--------------------------------------------------"
+                    )
+                    if comp_obj.observaciones:
+                        comp_obj.observaciones = f"{bloque_historial}\n{comp_obj.observaciones}"
+                    else:
+                        comp_obj.observaciones = bloque_historial
+                    session.add(comp_obj)
 
     session.add(equipo)
     session.add(detalle_renta)

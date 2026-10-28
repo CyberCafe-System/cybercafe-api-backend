@@ -1,4 +1,4 @@
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, status
@@ -6,6 +6,12 @@ from sqlmodel import SQLModel, func, select
 
 from config.security_dependencia import Token_Dependencia
 from config.session_dependencia import SessionDeDependencia
+from config.timezone import (
+    fecha_local_actual,
+    normalizar_a_utc,
+    normalizar_a_zona_local,
+    rango_dia_utc,
+)
 from models.cliente import Cliente
 from models.detalle_renta import DetalleRenta, EstadoRenta
 from models.detalle_venta import DetalleVenta
@@ -130,13 +136,12 @@ async def get_resumen_diario(
     """
     validar_permisos_reportes(token, permitir_cajero=True)
 
-    dia = fecha_reporte or datetime.now(timezone.utc).date()
-    inicio_dia = datetime.combine(dia, time.min)
-    fin_dia = datetime.combine(dia, time.max)
+    dia = fecha_reporte or fecha_local_actual()
+    inicio_dia, fin_dia = rango_dia_utc(dia)
 
     # Ventas del día
     ventas_hoy = session.exec(
-        select(Venta).where(Venta.fecha >= inicio_dia, Venta.fecha <= fin_dia)
+        select(Venta).where(Venta.fecha >= inicio_dia, Venta.fecha < fin_dia)
     ).all()
     ingresos_ventas_hoy = sum(
         (v.subtotal + v.iva for v in ventas_hoy), Decimal("0.00")
@@ -145,7 +150,7 @@ async def get_resumen_diario(
 
     # Rentas del día
     rentas_hoy = session.exec(
-        select(Renta).where(Renta.fecha >= inicio_dia, Renta.fecha <= fin_dia)
+        select(Renta).where(Renta.fecha >= inicio_dia, Renta.fecha < fin_dia)
     ).all()
     ingresos_rentas_hoy = sum(
         (r.total for r in rentas_hoy if r.estado_de_pago == EstadoPago.PAGADO),
@@ -183,14 +188,19 @@ async def get_reporte_ventas_por_fecha(
     """Consulta el total recaudado en ventas dentro de un rango específico de fechas."""
     validar_permisos_reportes(token, permitir_cajero=False)
 
+    inicio_local = normalizar_a_zona_local(fecha_inicio)
+    fin_local = normalizar_a_zona_local(fecha_fin)
+    inicio_utc = normalizar_a_utc(inicio_local)
+    fin_utc = normalizar_a_utc(fin_local)
+
     ventas = session.exec(
-        select(Venta).where(Venta.fecha >= fecha_inicio, Venta.fecha <= fecha_fin)
+        select(Venta).where(Venta.fecha >= inicio_utc, Venta.fecha <= fin_utc)
     ).all()
 
     total = sum((v.subtotal + v.iva for v in ventas), Decimal("0.00"))
     return ReporteRangoFechasResponse(
-        fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin,
+        fecha_inicio=inicio_local,
+        fecha_fin=fin_local,
         total_recaudado=total,
         cantidad_operaciones=len(ventas),
     )
@@ -210,8 +220,13 @@ async def get_reporte_rentas_por_fecha(
     """Consulta el total recaudado en rentas dentro de un rango específico de fechas."""
     validar_permisos_reportes(token, permitir_cajero=False)
 
+    inicio_local = normalizar_a_zona_local(fecha_inicio)
+    fin_local = normalizar_a_zona_local(fecha_fin)
+    inicio_utc = normalizar_a_utc(inicio_local)
+    fin_utc = normalizar_a_utc(fin_local)
+
     rentas = session.exec(
-        select(Renta).where(Renta.fecha >= fecha_inicio, Renta.fecha <= fecha_fin)
+        select(Renta).where(Renta.fecha >= inicio_utc, Renta.fecha <= fin_utc)
     ).all()
 
     total = sum(
@@ -219,8 +234,8 @@ async def get_reporte_rentas_por_fecha(
         Decimal("0.00"),
     )
     return ReporteRangoFechasResponse(
-        fecha_inicio=fecha_inicio,
-        fecha_fin=fecha_fin,
+        fecha_inicio=inicio_local,
+        fecha_fin=fin_local,
         total_recaudado=total,
         cantidad_operaciones=len(rentas),
     )

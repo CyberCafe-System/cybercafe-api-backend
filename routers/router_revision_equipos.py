@@ -13,6 +13,7 @@ from models.equipo import Equipo, EstadoEquipo
 from models.revision_equipo import (
     RevisionEquipo,
     RevisionEquipoCreate,
+    RevisionEquipoResponse,
     RevisionEquipoUpdate,
 )
 from models.usuario import Usuario
@@ -83,9 +84,30 @@ def validar_usuario(session: SessionDeDependencia, usuario_id: int) -> Usuario:
     return usuario
 
 
+def obtener_nombre_usuario(usuario: Usuario | None) -> str | None:
+    if not usuario:
+        return None
+
+    nombre = (usuario.nombre or "").strip()
+    if nombre:
+        return nombre
+
+    username = (usuario.username or "").strip()
+    return username or None
+
+
+def construir_respuesta_revision(
+    revision: RevisionEquipo, usuario: Usuario | None
+) -> RevisionEquipoResponse:
+    return RevisionEquipoResponse(
+        **revision.model_dump(),
+        usuario_nombre=obtener_nombre_usuario(usuario),
+    )
+
+
 @router.get(
     "/revisiones",
-    response_model=list[RevisionEquipo],
+    response_model=list[RevisionEquipoResponse],
     status_code=status.HTTP_200_OK,
 )
 async def get_revisiones(
@@ -108,12 +130,27 @@ async def get_revisiones(
     if usuario_id is not None:
         consulta = consulta.where(RevisionEquipo.usuario_id == usuario_id)
 
-    return session.exec(consulta.offset(offset).limit(limit)).all()
+    revisiones = session.exec(consulta.offset(offset).limit(limit)).all()
+    if not revisiones:
+        return []
+
+    usuario_ids = {revision.usuario_id for revision in revisiones}
+    usuarios = session.exec(
+        select(Usuario).where(Usuario.usuario_id.in_(usuario_ids))
+    ).all()
+    usuarios_por_id = {usuario.usuario_id: usuario for usuario in usuarios}
+
+    return [
+        construir_respuesta_revision(
+            revision, usuarios_por_id.get(revision.usuario_id)
+        )
+        for revision in revisiones
+    ]
 
 
 @router.get(
     "/revisiones/{revision_equipo_id}",
-    response_model=RevisionEquipo,
+    response_model=RevisionEquipoResponse,
     status_code=status.HTTP_200_OK,
 )
 async def get_revision(
@@ -122,12 +159,14 @@ async def get_revision(
     token: Token_Dependencia,
 ):
     validar_permisos_lectura(token)
-    return obtener_revision(session, revision_equipo_id)
+    revision = obtener_revision(session, revision_equipo_id)
+    usuario = session.get(Usuario, revision.usuario_id)
+    return construir_respuesta_revision(revision, usuario)
 
 
 @router.get(
     "/revisiones/detalle-renta/{detalle_renta_id}",
-    response_model=RevisionEquipo,
+    response_model=RevisionEquipoResponse,
     status_code=status.HTTP_200_OK,
 )
 async def get_revision_por_detalle_renta(
@@ -149,12 +188,14 @@ async def get_revision_por_detalle_renta(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No se ha registrado ninguna revisión técnica para este detalle de renta",
         )
-    return revision
+
+    usuario = session.get(Usuario, revision.usuario_id)
+    return construir_respuesta_revision(revision, usuario)
 
 
 @router.post(
     "/revisiones",
-    response_model=RevisionEquipo,
+    response_model=RevisionEquipoResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_revision(
@@ -193,8 +234,21 @@ async def create_revision(
         )
 
     # 2. Resolver y validar usuario inspector (FK)
-    usuario_id = datos.usuario_id or token.get("id")
-    validar_usuario(session, usuario_id) #type: ignore
+    # El asistente no puede atribuir la revisión a otro usuario; el administrador
+    # conserva la capacidad de indicar explícitamente al inspector.
+    if token.get("id_rol") == 3:
+        usuario_id = token.get("id")
+    else:
+        usuario_id = datos.usuario_id or token.get("id")
+
+    if usuario_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No se pudo identificar al usuario autenticado",
+        )
+
+    usuario_id = int(usuario_id)
+    usuario = validar_usuario(session, usuario_id)
 
     # 3. Comprobar si ya existe una revisión previa para este detalle_renta
     revision_existente = session.exec(
@@ -290,12 +344,12 @@ async def create_revision(
         )
 
     session.refresh(revision)
-    return revision
+    return construir_respuesta_revision(revision, usuario)
 
 
 @router.put(
     "/revisiones/{revision_equipo_id}",
-    response_model=RevisionEquipo,
+    response_model=RevisionEquipoResponse,
     status_code=status.HTTP_200_OK,
 )
 async def update_revision(
@@ -314,7 +368,8 @@ async def update_revision(
     session.add(revision)
     session.commit()
     session.refresh(revision)
-    return revision
+    usuario = session.get(Usuario, revision.usuario_id)
+    return construir_respuesta_revision(revision, usuario)
 
 
 @router.delete(

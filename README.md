@@ -108,9 +108,11 @@ DATABASE_URL=mysql+pymysql://user:password@localhost:3306/cybercafe
 SECRET_KEY=tu_secret_key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=60
+TIMEZONE=America/El_Salvador
 ```
 
 > Copia `.env-example` como `.env` y ajusta los valores según tu entorno local.
+> `TIMEZONE` define la zona horaria usada para los cortes diarios y reportes por fecha (por defecto `America/El_Salvador`).
 
 ---
 
@@ -374,6 +376,7 @@ DB_USER=...
 DB_PASSWORD=...
 DB_HOST=...
 DB_PORT=...
+TIMEZONE=America/El_Salvador
 ```
 
 El archivo `.env` debe agregarse al `.gitignore` para evitar subir información sensible al repositorio.

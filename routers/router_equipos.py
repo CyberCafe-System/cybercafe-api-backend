@@ -10,9 +10,18 @@ from config.security import get_current_user
 from models.equipo import Equipo, EquipoCreate, EquipoUpdate, EstadoEquipo
 
 
+ROLES_CON_PERMISO_LECTURA_EQUIPOS = {1, 2, 3}
 ROLES_CON_PERMISO_GESTION_EQUIPOS = {1}
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
+
+
+def validar_permisos_lectura(token: dict) -> None:
+    if token.get("id_rol") not in ROLES_CON_PERMISO_LECTURA_EQUIPOS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para consultar equipos",
+        )
 
 
 def validar_permisos_gestion(token: dict) -> None:
@@ -53,9 +62,11 @@ def validar_datos_parciales(datos: EquipoUpdate) -> None:
 )
 async def get_equipos(
     session: SessionDeDependencia,
+    token: Token_Dependencia,
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1),
 ):
+    validar_permisos_lectura(token)
     return session.exec(select(Equipo).offset(offset).limit(limit)).all()
 
 
@@ -67,7 +78,9 @@ async def get_equipos(
 async def get_equipo(
     equipo_id: int,
     session: SessionDeDependencia,
+    token: Token_Dependencia,
 ):
+    validar_permisos_lectura(token)
     return obtener_equipo(session, equipo_id)
 
 

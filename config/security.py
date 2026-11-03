@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 import os
 from librerias.token_blacklist import token_blacklist
+from config.session_dependencia import SessionDeDependencia
 
 load_dotenv()
 
@@ -31,9 +32,15 @@ def decode_access_token(token: str):
     return payload
 
 
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(
+    session: SessionDeDependencia,
+    token: str = Depends(oauth2_scheme),
+):
     credencial_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado ", headers={"WWW-Authenticate": "Bearer"})
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No autenticado ",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
     if token_blacklist.esta_revocado(token):
         raise HTTPException(
@@ -45,18 +52,49 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = decode_access_token(token)
 
-        id: Optional[int] = payload.get("id")
-        username: Optional[str] = payload.get("username")
-        id_rol: Optional[int] = payload.get("id_rol")
+        id_claim = payload.get("id")
+        username = payload.get("username")
 
-        if username is None:
+        if id_claim is None or username is None:
             raise credencial_exception
-        return {"id": id, "username": username, "id_rol": id_rol}
+
+        try:
+            usuario_id = int(id_claim)
+        except (TypeError, ValueError):
+            raise credencial_exception
+
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Token expirado", headers={"WWW-Authenticate": "Bearer"})
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     except jwt.InvalidTokenError:
         raise credencial_exception
+
+    from models.usuario import Usuario
+
+    usuario = session.get(Usuario, usuario_id)
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="El usuario ya no existe. Inicia sesión de nuevo.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="El usuario se encuentra inactivo. Comuníquese con el administrador.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return {
+        "id": usuario.usuario_id,
+        "username": usuario.username,
+        "id_rol": usuario.rol_id,
+        "is_superuser": usuario.is_superuser,
+    }
 
 
 def get_admin_user(current_user: dict = Depends(get_current_user)):

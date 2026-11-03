@@ -18,8 +18,19 @@ class RevisionEquipo(RevisionEquipoBase, table=True):
     __tablename__ = "revisiones_equipo" #type:ignore
     revision_equipo_id: Optional[int] = Field(default=None, primary_key=True)
 
+class RevisionEquipoResponse(RevisionEquipoBase):
+    revision_equipo_id: int
+    usuario_nombre: Optional[str] = None
+
+class ComponenteRevisionItem(SQLModel):
+    componente_id: Optional[int] = None
+    nombre: Optional[str] = None
+    estado: Optional[str] = None  # Ej: "Daños menores", "Requiere reemplazo"
+    descripcion_danio: Optional[str] = None
+
 class RevisionEquipoCreate(RevisionEquipoBase):
     usuario_id: Optional[int] = None #type: ignore
+    componentes_afectados: Optional[list[ComponenteRevisionItem]] = None
 
 class RevisionEquipoUpdate(SQLModel):
     inspeccion_pasada: Optional[bool] = None

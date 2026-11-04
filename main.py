@@ -8,7 +8,6 @@ from routers.router_equipos import router as equipo_router
 from routers.router_categorias import router as categoria_router
 from routers.router_productos import router as productos_router
 from routers.router_clientes import router as cliente_router
-from routers.router_roles import router as rol_router
 from routers.router_componentes import router as componente_router
 from routers.router_revision_equipos import router as revision_router
 from routers.router_rentas import router as renta_router
@@ -53,7 +52,6 @@ async def home():
     return {"message": "ok"}
 
 app.include_router(oauth_router, tags=['oauth'])
-app.include_router(rol_router, tags=["roles"])
 app.include_router(usuario_router, tags=["usuarios"])
 app.include_router(cliente_router, tags=["clientes"])
 app.include_router(equipo_router, tags=["equipos"])

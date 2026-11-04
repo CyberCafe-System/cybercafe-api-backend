@@ -14,14 +14,11 @@ from models.revision_equipo import (
     RevisionEquipo,
     RevisionEquipoCreate,
     RevisionEquipoResponse,
-    RevisionEquipoUpdate,
 )
 from models.usuario import Usuario
 
 
 ROLES_CON_PERMISO_LECTURA_REVISIONES = {1, 2, 3}
-ROLES_CON_PERMISO_GESTION_REVISIONES = {1, 3}
-ROLES_CON_PERMISO_ELIMINACION_REVISIONES = {1}
 
 router = APIRouter()
 
@@ -32,34 +29,6 @@ def validar_permisos_lectura(token: dict) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para consultar revisiones de equipos",
         )
-
-
-def validar_permisos_gestion(token: dict) -> None:
-    if token.get("id_rol") not in ROLES_CON_PERMISO_GESTION_REVISIONES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo el administrador o el asistente pueden registrar o modificar revisiones",
-        )
-
-
-def validar_permisos_eliminacion(token: dict) -> None:
-    if token.get("id_rol") not in ROLES_CON_PERMISO_ELIMINACION_REVISIONES:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo el administrador puede eliminar revisiones de equipos",
-        )
-
-
-def obtener_revision(
-    session: SessionDeDependencia, revision_equipo_id: int
-) -> RevisionEquipo:
-    revision = session.get(RevisionEquipo, revision_equipo_id)
-    if not revision:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Revisión de equipo no encontrada",
-        )
-    return revision
 
 
 def validar_detalle_renta(
@@ -146,51 +115,6 @@ async def get_revisiones(
         )
         for revision in revisiones
     ]
-
-
-@router.get(
-    "/revisiones/{revision_equipo_id}",
-    response_model=RevisionEquipoResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_revision(
-    revision_equipo_id: int,
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-):
-    validar_permisos_lectura(token)
-    revision = obtener_revision(session, revision_equipo_id)
-    usuario = session.get(Usuario, revision.usuario_id)
-    return construir_respuesta_revision(revision, usuario)
-
-
-@router.get(
-    "/revisiones/detalle-renta/{detalle_renta_id}",
-    response_model=RevisionEquipoResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_revision_por_detalle_renta(
-    detalle_renta_id: int,
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-):
-    """Consulta la inspección técnica vinculada a una sesión específica de renta."""
-    validar_permisos_lectura(token)
-    validar_detalle_renta(session, detalle_renta_id)
-
-    revision = session.exec(
-        select(RevisionEquipo).where(
-            RevisionEquipo.detalle_renta_id == detalle_renta_id
-        )
-    ).first()
-    if not revision:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No se ha registrado ninguna revisión técnica para este detalle de renta",
-        )
-
-    usuario = session.get(Usuario, revision.usuario_id)
-    return construir_respuesta_revision(revision, usuario)
 
 
 @router.post(
@@ -345,48 +269,3 @@ async def create_revision(
 
     session.refresh(revision)
     return construir_respuesta_revision(revision, usuario)
-
-
-@router.put(
-    "/revisiones/{revision_equipo_id}",
-    response_model=RevisionEquipoResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def update_revision(
-    revision_equipo_id: int,
-    datos: RevisionEquipoUpdate,
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-):
-    validar_permisos_gestion(token)
-    revision = obtener_revision(session, revision_equipo_id)
-
-    for campo, valor in datos.model_dump(exclude_unset=True).items():
-        if valor is not None:
-            setattr(revision, campo, valor)
-
-    session.add(revision)
-    session.commit()
-    session.refresh(revision)
-    usuario = session.get(Usuario, revision.usuario_id)
-    return construir_respuesta_revision(revision, usuario)
-
-
-@router.delete(
-    "/revisiones/{revision_equipo_id}",
-    status_code=status.HTTP_200_OK,
-)
-async def delete_revision(
-    revision_equipo_id: int,
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-):
-    validar_permisos_eliminacion(token)
-    revision = obtener_revision(session, revision_equipo_id)
-
-    session.delete(revision)
-    session.commit()
-    return {
-        "message": "Revisión técnica eliminada exitosamente",
-        "revision_equipo_id": revision_equipo_id,
-    }

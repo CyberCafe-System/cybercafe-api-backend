@@ -1,28 +1,21 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlmodel import SQLModel, func, select
+from sqlmodel import select
 
 from config.security_dependencia import Token_Dependencia
 from config.session_dependencia import SessionDeDependencia
 from config.timezone import (
     fecha_local_actual,
-    normalizar_a_utc,
-    normalizar_a_zona_local,
     rango_dia_utc,
 )
 from models.cliente import Cliente
 from models.detalle_renta import DetalleRenta, EstadoRenta
-from models.detalle_venta import DetalleVenta
 from models.equipo import Equipo, EstadoEquipo
 from models.producto import Producto
 from models.renta import EstadoPago, Renta
 from models.venta import Venta
 from models.reporte import (
-    EquipoTopResponse,
-    ProductoTopResponse,
-    ReporteRangoFechasResponse,
     ResumenDiarioResponse,
     ResumenGeneralResponse,
 )
@@ -172,177 +165,3 @@ async def get_resumen_diario(
         cantidad_rentas_hoy=cantidad_rentas_hoy,
         rentas_pendientes_pago_hoy=rentas_pendientes,
     )
-
-
-@router.get(
-    "/reportes/ventas-por-fecha",
-    response_model=ReporteRangoFechasResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_reporte_ventas_por_fecha(
-    fecha_inicio: datetime,
-    fecha_fin: datetime,
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-):
-    """Consulta el total recaudado en ventas dentro de un rango específico de fechas."""
-    validar_permisos_reportes(token, permitir_cajero=False)
-
-    inicio_local = normalizar_a_zona_local(fecha_inicio)
-    fin_local = normalizar_a_zona_local(fecha_fin)
-    inicio_utc = normalizar_a_utc(inicio_local)
-    fin_utc = normalizar_a_utc(fin_local)
-
-    ventas = session.exec(
-        select(Venta).where(Venta.fecha >= inicio_utc, Venta.fecha <= fin_utc)
-    ).all()
-
-    total = sum((v.subtotal + v.iva for v in ventas), Decimal("0.00"))
-    return ReporteRangoFechasResponse(
-        fecha_inicio=inicio_local,
-        fecha_fin=fin_local,
-        total_recaudado=total,
-        cantidad_operaciones=len(ventas),
-    )
-
-
-@router.get(
-    "/reportes/rentas-por-fecha",
-    response_model=ReporteRangoFechasResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_reporte_rentas_por_fecha(
-    fecha_inicio: datetime,
-    fecha_fin: datetime,
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-):
-    """Consulta el total recaudado en rentas dentro de un rango específico de fechas."""
-    validar_permisos_reportes(token, permitir_cajero=False)
-
-    inicio_local = normalizar_a_zona_local(fecha_inicio)
-    fin_local = normalizar_a_zona_local(fecha_fin)
-    inicio_utc = normalizar_a_utc(inicio_local)
-    fin_utc = normalizar_a_utc(fin_local)
-
-    rentas = session.exec(
-        select(Renta).where(Renta.fecha >= inicio_utc, Renta.fecha <= fin_utc)
-    ).all()
-
-    total = sum(
-        (r.total for r in rentas if r.estado_de_pago == EstadoPago.PAGADO),
-        Decimal("0.00"),
-    )
-    return ReporteRangoFechasResponse(
-        fecha_inicio=inicio_local,
-        fecha_fin=fin_local,
-        total_recaudado=total,
-        cantidad_operaciones=len(rentas),
-    )
-
-
-@router.get(
-    "/reportes/productos-top",
-    response_model=list[ProductoTopResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def get_productos_top(
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-    limit: int = Query(10, ge=1, le=50, description="Cantidad máxima de productos a listar"),
-):
-    """Ranking de los productos más vendidos en el Cybercafé con sus ingresos generados."""
-    validar_permisos_reportes(token, permitir_cajero=True)
-
-    detalles = session.exec(select(DetalleVenta)).all()
-
-    acumulador: dict[int, dict] = {}
-    for det in detalles:
-        if det.producto_id not in acumulador:
-            acumulador[det.producto_id] = {
-                "unidades": 0,
-                "ingresos": Decimal("0.00"),
-            }
-        acumulador[det.producto_id]["unidades"] += det.cantidad
-        acumulador[det.producto_id]["ingresos"] += det.subtotal
-
-    resultado: list[ProductoTopResponse] = []
-    for producto_id, data in acumulador.items():
-        prod = session.get(Producto, producto_id)
-        nombre = prod.nombre if prod else f"Producto #{producto_id}"
-        resultado.append(
-            ProductoTopResponse(
-                producto_id=producto_id,
-                nombre=nombre,
-                unidades_vendidas=data["unidades"],
-                ingresos_generados=data["ingresos"],
-            )
-        )
-
-    # Ordenar descendente por unidades vendidas
-    resultado.sort(key=lambda x: x.unidades_vendidas, reverse=True)
-    return resultado[:limit]
-
-
-@router.get(
-    "/reportes/equipos-top",
-    response_model=list[EquipoTopResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def get_equipos_top(
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-    limit: int = Query(10, ge=1, le=50, description="Cantidad máxima de equipos a listar"),
-):
-    """Ranking de las computadoras y consolas más utilizadas y con mayores ingresos generados."""
-    validar_permisos_reportes(token, permitir_cajero=True)
-
-    detalles = session.exec(select(DetalleRenta)).all()
-
-    acumulador: dict[int, dict] = {}
-    for det in detalles:
-        if det.equipo_id not in acumulador:
-            acumulador[det.equipo_id] = {
-                "minutos": 0,
-                "ingresos": Decimal("0.00"),
-            }
-        tiempo_total = det.tiempo_de_renta + (det.tiempo_agregado or 0)
-        acumulador[det.equipo_id]["minutos"] += tiempo_total
-        acumulador[det.equipo_id]["ingresos"] += det.subtotal
-
-    resultado: list[EquipoTopResponse] = []
-    for equipo_id, data in acumulador.items():
-        equipo = session.get(Equipo, equipo_id)
-        nombre = equipo.nombre if equipo else f"Equipo #{equipo_id}"
-        resultado.append(
-            EquipoTopResponse(
-                equipo_id=equipo_id,
-                nombre=nombre,
-                total_minutos_rentados=data["minutos"],
-                ingresos_generados=data["ingresos"],
-            )
-        )
-
-    # Ordenar descendente por minutos de uso
-    resultado.sort(key=lambda x: x.total_minutos_rentados, reverse=True)
-    return resultado[:limit]
-
-
-@router.get(
-    "/reportes/stock-bajo",
-    response_model=list[Producto],
-    status_code=status.HTTP_200_OK,
-)
-async def get_productos_stock_bajo(
-    session: SessionDeDependencia,
-    token: Token_Dependencia,
-    umbral: int = Query(5, ge=1, description="Límite mínimo de existencias para emitir alerta"),
-):
-    """Lista los productos activos cuyo inventario es igual o menor al umbral configurado."""
-    validar_permisos_reportes(token, permitir_cajero=True)
-    consulta = (
-        select(Producto)
-        .where(Producto.activo == True, Producto.cantidad <= umbral)
-        .order_by(Producto.cantidad) #type: ignore
-    )
-    return session.exec(consulta).all()

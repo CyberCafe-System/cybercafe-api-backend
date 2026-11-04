@@ -7,7 +7,7 @@ from librerias.pwd import verify_password
 from librerias.rate_limiter import login_rate_limiter
 from librerias.token_blacklist import token_blacklist
 from config.security import create_access_token, decode_access_token, oauth2_scheme
-from config.security_dependencia import OAuth2FormDeDependencia, Admin_Token_Dependencia
+from config.security_dependencia import OAuth2FormDeDependencia
 
 router = APIRouter()
 
@@ -98,16 +98,3 @@ async def logout(token: str = Depends(oauth2_scheme)):
 
     token_blacklist.revocar_token(token, exp, info_usuario)
     return {"message": "Sesión cerrada exitosamente"}
-
-
-@router.get("/oauth/tokens-revocados", status_code=status.HTTP_200_OK)
-async def get_tokens_revocados(admin: Admin_Token_Dependencia):
-    """
-    Lista todos los tokens actualmente revocados (en blacklist).
-    Requiere permisos de Administrador (id_rol = 1).
-    """
-    tokens = token_blacklist.listar_tokens_revocados()
-    return {
-        "total": len(tokens),
-        "tokens_revocados": tokens,
-    }

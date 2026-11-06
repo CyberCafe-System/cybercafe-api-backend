@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 
@@ -8,6 +8,7 @@ from config.security_dependencia import (
 )
 from config.session_dependencia import SessionDeDependencia
 from models.componente import Componente, EstadoComponente
+from models.revision_componente import RevisionComponente
 from models.detalle_renta import DetalleRenta, EstadoRenta
 from models.equipo import Equipo, EstadoEquipo
 from models.revision_equipo import (
@@ -89,7 +90,7 @@ async def get_revisiones(
         None, description="Filtrar por ID del usuario que realizó la inspección"
     ),
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1),
+    limit: int = Query(20, ge=1, le=100),
 ):
     validar_permisos_lectura(token)
     consulta = select(RevisionEquipo)
@@ -134,21 +135,12 @@ async def create_revision(
     """
     Registra la inspección física pos-renta y actualiza de forma atómica los
     estados del equipo y de la sesión de renta.
-
-    Regla de negocio: solo se puede inspeccionar un detalle de renta que esté en
-    estado 'Pendiente Revision' (es decir, una sesión ya finalizada por el cajero
-    que espera la verificación del asistente). Una renta todavía 'Activa' o ya
-    'Finalizada' no puede revisarse.
-
-    La dependencia `Asistente_Token_Dependencia` garantiza que solo el Asistente
-    (rol_id = 3) o el Administrador (rol_id = 1) ejecuten esta operación.
     """
-
     # 1. Validar existencia del detalle de renta (FK)
     detalle_renta = validar_detalle_renta(session, datos.detalle_renta_id)
 
-    # 1.1 Regla de negocio: la renta debe estar Pendiente Revision para poder revisarse
-    if detalle_renta.estado != EstadoRenta.PENDIENTE_REVISION:
+    # 1.1 Regla de negocio: la renta debe estar Pendiente Revision (o TIEMPO_TERMINADO) para poder revisarse
+    if detalle_renta.estado not in (EstadoRenta.PENDIENTE_REVISION, EstadoRenta.TIEMPO_TERMINADO):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -158,8 +150,6 @@ async def create_revision(
         )
 
     # 2. Resolver y validar usuario inspector (FK)
-    # El asistente no puede atribuir la revisión a otro usuario; el administrador
-    # conserva la capacidad de indicar explícitamente al inspector.
     if token.get("id_rol") == 3:
         usuario_id = token.get("id")
     else:
@@ -200,19 +190,16 @@ async def create_revision(
     datos_dict["usuario_id"] = usuario_id
     revision = RevisionEquipo(**datos_dict)
     session.add(revision)
-    session.flush()  # Genera revision.revision_equipo_id de inmediato
+    session.flush()
 
     # 6. Actualización sincronizada de estados de negocio
-    if datos.inspeccion_pasada:
-        # Si pasó la inspección, el equipo vuelve a estar disponible para nuevos clientes
-        equipo.estado = EstadoEquipo.DISPONIBLE
-        detalle_renta.estado = EstadoRenta.FINALIZADA
-    else:
-        # Si no pasó, el equipo se marca con daños y queda bloqueado para renta
-        equipo.estado = estado_si_daniado
-        detalle_renta.estado = EstadoRenta.FINALIZADA
+    detalle_renta.estado = EstadoRenta.FINALIZADA
+    if not detalle_renta.hora_fin:
+        detalle_renta.hora_fin = datetime.now(timezone.utc)
 
-        # Formatear y actualizar revisiones en componentes afectados de forma acumulativa
+    if not datos.inspeccion_pasada:
+        equipo.estado = estado_si_daniado
+
         if componentes_input:
             fecha_str = (revision.fecha_revision or datetime.now()).strftime("%d/%m/%Y %H:%M")
             for item in componentes_input:
@@ -228,6 +215,7 @@ async def create_revision(
                     ).first()
 
                 if comp_obj:
+                    estado_previo_str = comp_obj.estado.value if hasattr(comp_obj.estado, "value") else str(comp_obj.estado)
                     if item.estado:
                         try:
                             comp_obj.estado = EstadoComponente(item.estado)
@@ -236,7 +224,7 @@ async def create_revision(
                     else:
                         comp_obj.estado = EstadoComponente.DANIOS_MENORES
 
-                    estado_label = comp_obj.estado.value if hasattr(comp_obj.estado, "value") else str(comp_obj.estado)
+                    estado_nuevo_str = comp_obj.estado.value if hasattr(comp_obj.estado, "value") else str(comp_obj.estado)
                     detalle_falla = item.descripcion_danio or datos.observaciones or "Reportado con novedades en inspección técnica"
                     bloque_historial = (
                         f"[REVISIÓN: #{revision.revision_equipo_id} | FECHA: {fecha_str}]\n"
@@ -249,15 +237,34 @@ async def create_revision(
                         comp_obj.observaciones = bloque_historial
                     session.add(comp_obj)
 
+                    # Guardar en tabla relacional revision_componentes
+                    if comp_obj.componente_id is not None and revision.revision_equipo_id is not None:
+                        rev_comp = RevisionComponente(
+                            revision_equipo_id=revision.revision_equipo_id,
+                            componente_id=comp_obj.componente_id,
+                            estado_previo=estado_previo_str,
+                            estado_nuevo=estado_nuevo_str,
+                            descripcion=detalle_falla,
+                        )
+                        session.add(rev_comp)
+    else:
+        # Si pasó la inspección, verificar que no tenga ningún componente activo dañado o en reemplazo
+        comp_danados = session.exec(
+            select(Componente).where(
+                Componente.equipo_id == equipo.equipo_id,
+                Componente.activo == True,  # type: ignore
+                Componente.estado.in_([EstadoComponente.DANIOS_MENORES, EstadoComponente.REQUIERE_REEMPLAZO]),  # type: ignore
+            )
+        ).all()
+        if comp_danados:
+            # Tiene componentes con novedad, no puede quedar DISPONIBLE automáticamente
+            equipo.estado = EstadoEquipo.DANIOS_MENORES
+        else:
+            equipo.estado = EstadoEquipo.DISPONIBLE
+
     session.add(equipo)
     session.add(detalle_renta)
 
-    # 7. Confirmación transaccional atómica.
-    # Las tres entidades (revision, equipo, detalle_renta) pertenecen a la MISMA
-    # sesión de base de datos (`SessionDeDependencia`) y sólo se persisten juntas
-    # al ejecutar un único `commit()`. Si cualquier escritura falla, se revierte
-    # TODO con `rollback()`, evitando estados inconsistentes (p. ej. una revisión
-    # registrada sin que el equipo haya cambiado de estado).
     try:
         session.commit()
     except Exception:

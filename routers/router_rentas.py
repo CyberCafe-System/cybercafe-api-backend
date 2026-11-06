@@ -7,6 +7,7 @@ from config.security_dependencia import (
     Token_Dependencia,
 )
 from config.session_dependencia import SessionDeDependencia
+from models.cliente import Cliente
 from models.detalle_renta import DetalleRenta, EstadoRenta
 from models.renta import (
     EstadoPago,
@@ -14,6 +15,7 @@ from models.renta import (
     RentaActivaResponse,
     RentaConDetallesResponse,
 )
+from services.notificacion_service import verificar_vencimiento_rentas
 
 
 ROLES_CON_PERMISO_LECTURA_RENTAS = {1, 2, 3}
@@ -50,7 +52,7 @@ async def get_rentas(
     cliente_id: int | None = Query(None, description="Filtrar por cliente"),
     estado_de_pago: EstadoPago | None = Query(None, description="Filtrar por estado de pago"),
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1),
+    limit: int = Query(20, ge=1, le=100),
 ):
     validar_permisos_lectura(token)
     consulta = select(Renta)
@@ -73,13 +75,19 @@ async def get_rentas_activas(
     token: Asistente_Token_Dependencia,
 ):
     """
-    Monitorea las computadoras y consolas en uso, calculando el tiempo restante
-    en vivo de cada sesión activa.
-
-    Acceso exclusivo del Asistente (rol_id = 3) y del Administrador (rol_id = 1).
+    Monitorea las computadoras y consolas en uso o con tiempo terminado,
+    calculando el tiempo restante en vivo de cada sesión.
+    Ejecuta el auto-cierre de tiempo vencido.
     """
+    try:
+        verificar_vencimiento_rentas(session)
+    except Exception:
+        pass
+
     detalles = session.exec(
-        select(DetalleRenta).where(DetalleRenta.estado == EstadoRenta.ACTIVA)
+        select(DetalleRenta).where(
+            DetalleRenta.estado.in_([EstadoRenta.ACTIVA, EstadoRenta.TIEMPO_TERMINADO]) #type: ignore
+        )
     ).all()
 
     ahora = datetime.now(timezone.utc)
@@ -87,29 +95,87 @@ async def get_rentas_activas(
 
     for detalle in detalles:
         tiempo_total = detalle.tiempo_de_renta + (detalle.tiempo_agregado or 0)
-        # Normaliza hora_inicio a UTC consciente para el cálculo del transcurso
         hora_inicio = detalle.hora_inicio
         if hora_inicio.tzinfo is None:
             hora_inicio = hora_inicio.replace(tzinfo=timezone.utc)
 
         transcurridos = int((ahora - hora_inicio).total_seconds() // 60)
+        if detalle.estado == EstadoRenta.TIEMPO_TERMINADO:
+            min_restantes = 0
+        elif detalle.hora_vencimiento is not None:
+            hv = detalle.hora_vencimiento
+            if hv.tzinfo is None:
+                hv = hv.replace(tzinfo=timezone.utc)
+            min_restantes = max(int((hv - ahora).total_seconds() // 60), 0)
+        else:
+            min_restantes = max(tiempo_total - transcurridos, 0)
+
+        renta = session.get(Renta, detalle.renta_id)
+        cliente = session.get(Cliente, renta.cliente_id) if renta else None
+        cl_nombre = f"{cliente.nombre} {cliente.apellido}".strip() if cliente else "Cliente General"
+
         resultado.append(
             RentaActivaResponse(
                 detalle_renta_id=detalle.detalle_renta_id, #type: ignore
                 renta_id=detalle.renta_id,
                 equipo_id=detalle.equipo_id,
+                cliente_nombre=cl_nombre,
                 hora_inicio=detalle.hora_inicio,
                 hora_fin=detalle.hora_fin,
+                hora_vencimiento=detalle.hora_vencimiento,
                 tiempo_de_renta=detalle.tiempo_de_renta,
                 tiempo_agregado=detalle.tiempo_agregado,
                 tiempo_total=tiempo_total,
                 minutos_transcurridos=transcurridos,
-                minutos_restantes=max(tiempo_total - transcurridos, 0),
+                minutos_restantes=min_restantes,
                 subtotal=detalle.subtotal,
                 estado=detalle.estado.value,
             )
         )
 
+    return resultado
+
+
+@router.get(
+    "/detalles-renta/pendientes-revision",
+    status_code=status.HTTP_200_OK,
+)
+async def get_detalles_pendientes_revision(
+    session: SessionDeDependencia,
+    token: Token_Dependencia,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+):
+    """
+    Devuelve los puestos pendientes de inspección física post-renta,
+    con los datos del cliente resueltos para la app móvil y frontend.
+    """
+    validar_permisos_lectura(token)
+    detalles = session.exec(
+        select(DetalleRenta)
+        .where(DetalleRenta.estado == EstadoRenta.PENDIENTE_REVISION)
+        .order_by(DetalleRenta.hora_fin.asc()) #type: ignore
+        .offset(offset)
+        .limit(limit)
+    ).all()
+
+    resultado = []
+    for d in detalles:
+        renta = session.get(Renta, d.renta_id)
+        cliente = session.get(Cliente, renta.cliente_id) if renta else None
+        cl_nombre = f"{cliente.nombre} {cliente.apellido}".strip() if cliente else "Cliente General"
+        resultado.append({
+            "detalle_renta_id": d.detalle_renta_id,
+            "equipo_id": d.equipo_id,
+            "renta_id": d.renta_id,
+            "cliente_nombre": cl_nombre,
+            "hora_inicio": d.hora_inicio.isoformat() if d.hora_inicio else None,
+            "hora_fin": d.hora_fin.isoformat() if d.hora_fin else None,
+            "tiempo_de_renta": d.tiempo_de_renta,
+            "tiempo_agregado": d.tiempo_agregado,
+            "subtotal": float(d.subtotal),
+            "estado": d.estado.value,
+        })
     return resultado
 
 
@@ -142,9 +208,9 @@ async def get_detalles_renta(
     token: Token_Dependencia,
     renta_id: int | None = Query(None, description="Filtrar por ID de renta"),
     equipo_id: int | None = Query(None, description="Filtrar por equipo"),
-    estado: EstadoRenta | None = Query(None, description="Filtrar por estado (Activa, Pendiente Revision, Finalizada)"),
+    estado: EstadoRenta | None = Query(None, description="Filtrar por estado"),
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1),
+    limit: int = Query(20, ge=1, le=100),
 ):
     validar_permisos_lectura(token)
     consulta = select(DetalleRenta)

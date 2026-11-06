@@ -10,6 +10,7 @@ class ProductoBase(SQLModel):
     cantidad: int
     imagen: Optional[str] = Field(default=None, max_length=255)
     activo: bool = Field(default=True)
+    version: int = Field(default=0)
 
 class Producto(ProductoBase, table=True):
     __tablename__ = "productos" #type: ignore
@@ -26,3 +27,4 @@ class ProductoUpdate(SQLModel):
     cantidad: Optional[int] = None
     imagen: Optional[str] = Field(default=None, max_length=255)
     activo: Optional[bool] = None
+    version: Optional[int] = None

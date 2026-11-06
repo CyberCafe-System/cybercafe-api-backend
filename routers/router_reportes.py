@@ -53,8 +53,8 @@ async def get_resumen_general(
     """
     validar_permisos_reportes(token, permitir_cajero=True)
 
-    # 1. Ventas: suma subtotal + iva
-    ventas = session.exec(select(Venta)).all()
+    # 1. Ventas: suma subtotal + iva (excluyendo anuladas)
+    ventas = session.exec(select(Venta).where(Venta.estado != "ANULADA")).all()
     cantidad_ventas = len(ventas)
     total_ingresos_ventas = sum((v.subtotal + v.iva for v in ventas), Decimal("0.00"))
 
@@ -71,7 +71,9 @@ async def get_resumen_general(
     # 3. Sesiones de renta activas
     sesiones_activas = len(
         session.exec(
-            select(DetalleRenta).where(DetalleRenta.estado == EstadoRenta.ACTIVA)
+            select(DetalleRenta).where(
+                DetalleRenta.estado.in_([EstadoRenta.ACTIVA, EstadoRenta.TIEMPO_TERMINADO]) #type: ignore
+            )
         ).all()
     )
 
@@ -132,9 +134,13 @@ async def get_resumen_diario(
     dia = fecha_reporte or fecha_local_actual()
     inicio_dia, fin_dia = rango_dia_utc(dia)
 
-    # Ventas del día
+    # Ventas del día (excluyendo anuladas)
     ventas_hoy = session.exec(
-        select(Venta).where(Venta.fecha >= inicio_dia, Venta.fecha < fin_dia)
+        select(Venta).where(
+            Venta.fecha >= inicio_dia,
+            Venta.fecha < fin_dia,
+            Venta.estado != "ANULADA",
+        )
     ).all()
     ingresos_ventas_hoy = sum(
         (v.subtotal + v.iva for v in ventas_hoy), Decimal("0.00")

@@ -2,6 +2,7 @@ import os
 from sqlmodel import SQLModel, Session, create_engine, select
 from sqlalchemy import text
 from dotenv import load_dotenv
+from config.migraciones import aplicar_todas_las_migraciones
 
 load_dotenv()
 
@@ -15,8 +16,7 @@ DB_PORT = os.getenv("DB_PORT", "3306")
 DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 SERVER_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}"
 
-print("Connection to database at url")
-engine = create_engine(DB_URL, echo=True)
+engine = create_engine(DB_URL, echo=False, pool_pre_ping=True, pool_recycle=1800)
 
 
 def asegurar_base_de_datos():
@@ -104,29 +104,12 @@ def inicializar_datos_semilla():
         print(f"Aviso al inicializar datos semilla: {e}")
 
 
-def migrar_columnas():
-    try:
-        with engine.connect() as conn:
-            res = conn.execute(text(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS "
-                f"WHERE TABLE_SCHEMA = '{DB_NAME}' AND TABLE_NAME = 'componentes' AND COLUMN_NAME = 'numero_serie';"
-            )).scalar()
-            if not res:
-                conn.execute(text(
-                    "ALTER TABLE `componentes` ADD COLUMN `numero_serie` VARCHAR(100) NULL AFTER `nombre`;"
-                ))
-                conn.commit()
-                print("Columna 'numero_serie' agregada a tabla 'componentes'")
-    except Exception as e:
-        print(f"Aviso al migrar columnas de base de datos: {e}")
-
-
 def crear_db_y_tablas():
     asegurar_base_de_datos()
     try:
         import models  # Registra todos los modelos en SQLModel.metadata
         SQLModel.metadata.create_all(engine)
-        migrar_columnas()
+        aplicar_todas_las_migraciones(engine, DB_NAME)
         inicializar_datos_semilla()
     except Exception as e:
         print(f"Error en la bd: {e}")

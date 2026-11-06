@@ -412,6 +412,18 @@ def _m_v013(conn, db_name: str):
             logger.warning("No se pudo agregar FK fk_ventas_anulada_por: %s", e)
 
 
+def _m_v014(conn, db_name: str):
+    """Clientes: eliminar columna direccion; Equipos: agregar columna activo"""
+    if _columna_existe(conn, db_name, "clientes", "direccion"):
+        conn.execute(
+            text("ALTER TABLE `clientes` DROP COLUMN `direccion`;")
+        )
+    if not _columna_existe(conn, db_name, "equipos", "activo"):
+        conn.execute(
+            text("ALTER TABLE `equipos` ADD COLUMN `activo` TINYINT(1) NOT NULL DEFAULT 1 AFTER `estado`;")
+        )
+
+
 # Lista ordenada de migraciones
 MIGRACIONES = [
     ("V001", "Crear tabla esquema_migraciones", _m_v001),
@@ -427,6 +439,7 @@ MIGRACIONES = [
     ("V011", "Tabla revision_componentes relacional", _m_v011),
     ("V012", "Tabla auditoria de cambios del sistema", _m_v012),
     ("V013", "Ventas: campos de anulacion", _m_v013),
+    ("V014", "Clientes: eliminar columna direccion y Equipos: columna activo", _m_v014),
 ]
 
 

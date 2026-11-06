@@ -27,7 +27,7 @@ def validar_permisos_lectura(token: dict) -> None:
 async def get_clientes(
     session: SessionDeDependencia,
     token: Token_Dependencia,
-    busqueda: str | None = Query(None, description="Buscar por nombre, apellido, DUI o dirección"),
+    busqueda: str | None = Query(None, description="Buscar por nombre, apellido o DUI"),
     activo: bool | None = Query(None, description="Filtrar por estado activo"),
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -43,7 +43,6 @@ async def get_clientes(
                 Cliente.nombre.like(termino),  # type: ignore
                 Cliente.apellido.like(termino),  # type: ignore
                 Cliente.dui.like(termino),  # type: ignore
-                Cliente.direccion.like(termino),  # type: ignore
             )
         )
     return session.exec(consulta.offset(offset).limit(limit)).all()

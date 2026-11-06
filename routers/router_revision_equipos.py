@@ -248,17 +248,25 @@ async def create_revision(
                         )
                         session.add(rev_comp)
     else:
-        # Si pasó la inspección, verificar que no tenga ningún componente activo dañado o en reemplazo
+        # Si pasó la inspección, verificar que no tenga ningún componente dañado, en reemplazo o desactivado
         comp_danados = session.exec(
             select(Componente).where(
                 Componente.equipo_id == equipo.equipo_id,
-                Componente.activo == True,  # type: ignore
                 Componente.estado.in_([EstadoComponente.DANIOS_MENORES, EstadoComponente.REQUIERE_REEMPLAZO]),  # type: ignore
+            )
+        ).all()
+        comp_inactivos = session.exec(
+            select(Componente).where(
+                Componente.equipo_id == equipo.equipo_id,
+                Componente.activo == False,  # type: ignore
             )
         ).all()
         if comp_danados:
             # Tiene componentes con novedad, no puede quedar DISPONIBLE automáticamente
             equipo.estado = EstadoEquipo.DANIOS_MENORES
+        elif comp_inactivos:
+            # Tiene componentes desactivados, no puede quedar DISPONIBLE
+            equipo.estado = EstadoEquipo.EN_MANTENIMIENTO
         else:
             equipo.estado = EstadoEquipo.DISPONIBLE
 

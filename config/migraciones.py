@@ -413,10 +413,14 @@ def _m_v013(conn, db_name: str):
 
 
 def _m_v014(conn, db_name: str):
-    """Clientes: eliminar columna direccion; Equipos: agregar columna activo"""
+    """Clientes: direccion NULL y opcional; Equipos: agregar columna activo"""
     if _columna_existe(conn, db_name, "clientes", "direccion"):
         conn.execute(
-            text("ALTER TABLE `clientes` DROP COLUMN `direccion`;")
+            text("ALTER TABLE `clientes` MODIFY COLUMN `direccion` VARCHAR(255) NULL DEFAULT NULL;")
+        )
+    else:
+        conn.execute(
+            text("ALTER TABLE `clientes` ADD COLUMN `direccion` VARCHAR(255) NULL DEFAULT NULL AFTER `dui`;")
         )
     if not _columna_existe(conn, db_name, "equipos", "activo"):
         conn.execute(
@@ -439,7 +443,7 @@ MIGRACIONES = [
     ("V011", "Tabla revision_componentes relacional", _m_v011),
     ("V012", "Tabla auditoria de cambios del sistema", _m_v012),
     ("V013", "Ventas: campos de anulacion", _m_v013),
-    ("V014", "Clientes: eliminar columna direccion y Equipos: columna activo", _m_v014),
+    ("V014", "Clientes: direccion opcional nullable y Equipos: columna activo", _m_v014),
 ]
 
 

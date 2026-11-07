@@ -16,7 +16,14 @@ DB_PORT = os.getenv("DB_PORT", "3306")
 DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 SERVER_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}"
 
-engine = create_engine(DB_URL, echo=False, pool_pre_ping=True, pool_recycle=1800)
+engine = create_engine(
+    DB_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+    pool_size=10,
+    max_overflow=20,
+)
 
 
 def asegurar_base_de_datos():

@@ -20,6 +20,7 @@ class EquipoBase(SQLModel):
     imagen: Optional[str] = Field(default=None, max_length=255)
     tipo: TipoEquipo = Field(sa_column=Column(SAEnum(TipoEquipo)))
     estado: EstadoEquipo = Field(sa_column=Column(SAEnum(EstadoEquipo)))
+    activo: bool = Field(default=True, nullable=False)
 
 
 class Equipo(EquipoBase, table=True):
@@ -40,3 +41,4 @@ class EquipoUpdate(SQLModel):
     imagen: Optional[str] = Field(default=None, max_length=255)
     tipo: Optional[TipoEquipo] = None
     estado: Optional[EstadoEquipo] = None
+    activo: Optional[bool] = None

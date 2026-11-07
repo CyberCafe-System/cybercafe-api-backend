@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlmodel import select
 
+from config.paginacion import paginar_consulta
 from config.security_dependencia import Token_Dependencia
 from config.session_dependencia import SessionDeDependencia
 from models.producto import Producto
@@ -24,11 +25,19 @@ def validar_permisos_productos(token: dict) -> None:
     response_model=list[Producto],
     status_code=status.HTTP_200_OK,
 )
-async def get_productos(
+def get_productos(
+    response: Response,
     session: SessionDeDependencia,
     token: Token_Dependencia,
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1),
+    limit: int = Query(20, ge=1, le=500),
 ):
     validar_permisos_productos(token)
-    return session.exec(select(Producto).offset(offset).limit(limit)).all()
+    return paginar_consulta(
+        session=session,
+        response=response,
+        consulta=select(Producto),
+        columna_orden=Producto.producto_id.asc(),  # type: ignore
+        offset=offset,
+        limit=limit,
+    )

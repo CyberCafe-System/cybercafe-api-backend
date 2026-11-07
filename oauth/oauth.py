@@ -7,13 +7,13 @@ from librerias.pwd import verify_password
 from librerias.rate_limiter import login_rate_limiter
 from librerias.token_blacklist import token_blacklist
 from config.security import create_access_token, decode_access_token, oauth2_scheme
-from config.security_dependencia import OAuth2FormDeDependencia
+from config.security_dependencia import Admin_Token_Dependencia, OAuth2FormDeDependencia
 
 router = APIRouter()
 
 
 @router.post("/oauth/login", status_code=status.HTTP_200_OK)
-async def login(
+def login(
     request: Request,
     form_data: OAuth2FormDeDependencia,
     session: SessionDeDependencia,
@@ -51,12 +51,12 @@ async def login(
     if not usuario:
         _fallo_autenticacion("username o password incorrectos", status.HTTP_401_UNAUTHORIZED)
 
-    if not usuario.activo:
-        _fallo_autenticacion("El usuario se encuentra inactivo. Comuníquese con el administrador.", status.HTTP_403_FORBIDDEN)
-
-    # 3. Verifica que la contraseña ingresada por el usuario sea correcta
+    # 3. Verifica primero que la contraseña ingresada sea correcta (evita enumerar cuentas inactivas)
     if not verify_password(form_data.password, usuario.password):
         _fallo_autenticacion("username o password incorrectos", status.HTTP_401_UNAUTHORIZED)
+
+    if not usuario.activo:
+        _fallo_autenticacion("El usuario se encuentra inactivo. Comuníquese con el administrador.", status.HTTP_403_FORBIDDEN)
 
     # 4. Credenciales válidas: reiniciar contador de fallos
     login_rate_limiter.record_success(client_key)
@@ -79,7 +79,7 @@ async def login(
 
 
 @router.post("/oauth/logout", status_code=status.HTTP_200_OK)
-async def logout(token: str = Depends(oauth2_scheme)):
+def logout(token: str = Depends(oauth2_scheme)):
     """
     Cierra la sesión del usuario revocando el token actual.
     El token revocado no podrá ser utilizado nuevamente en ninguna petición.
@@ -98,3 +98,15 @@ async def logout(token: str = Depends(oauth2_scheme)):
 
     token_blacklist.revocar_token(token, exp, info_usuario)
     return {"message": "Sesión cerrada exitosamente"}
+
+
+@router.get("/oauth/tokens-revocados", status_code=status.HTTP_200_OK)
+def get_tokens_revocados(token: Admin_Token_Dependencia):
+    """
+    Retorna la lista de tokens JWT actualmente en la lista negra (solo Administrador).
+    """
+    revocados = token_blacklist.listar_tokens_revocados()
+    return {
+        "total": len(revocados),
+        "tokens_revocados": revocados,
+    }

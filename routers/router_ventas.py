@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlmodel import select
 
+from config.paginacion import paginar_consulta
 from config.security_dependencia import Token_Dependencia
 from config.session_dependencia import SessionDeDependencia
 from models.detalle_venta import DetalleVenta
@@ -38,23 +39,36 @@ def obtener_venta(session: SessionDeDependencia, venta_id: int) -> Venta:
     response_model=list[Venta],
     status_code=status.HTTP_200_OK,
 )
-async def get_ventas(
+def get_ventas(
+    response: Response,
     session: SessionDeDependencia,
     token: Token_Dependencia,
     cliente_id: int | None = Query(None, description="Filtrar ventas por cliente"),
     usuario_id: int | None = Query(None, description="Filtrar ventas por cajero/usuario"),
+    incluir_anuladas: bool = Query(
+        False, description="Si es True, incluye ventas con estado ANULADA"
+    ),
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1),
+    limit: int = Query(20, ge=1, le=500),
 ):
     validar_permisos_ventas(token)
     consulta = select(Venta)
 
+    if not incluir_anuladas:
+        consulta = consulta.where(Venta.estado != "ANULADA")
     if cliente_id is not None:
         consulta = consulta.where(Venta.cliente_id == cliente_id)
     if usuario_id is not None:
         consulta = consulta.where(Venta.usuario_id == usuario_id)
 
-    return session.exec(consulta.offset(offset).limit(limit)).all()
+    return paginar_consulta(
+        session=session,
+        response=response,
+        consulta=consulta,
+        columna_orden=Venta.venta_id.desc(),  # type: ignore
+        offset=offset,
+        limit=limit,
+    )
 
 
 @router.get(
@@ -62,7 +76,7 @@ async def get_ventas(
     response_model=VentaConDetallesResponse,
     status_code=status.HTTP_200_OK,
 )
-async def get_venta(
+def get_venta(
     venta_id: int,
     session: SessionDeDependencia,
     token: Token_Dependencia,
@@ -71,7 +85,9 @@ async def get_venta(
     validar_permisos_ventas(token)
     venta = obtener_venta(session, venta_id)
     detalles = session.exec(
-        select(DetalleVenta).where(DetalleVenta.venta_id == venta_id)
+        select(DetalleVenta)
+        .where(DetalleVenta.venta_id == venta_id)
+        .order_by(DetalleVenta.detalle_venta_id.asc())  # type: ignore
     ).all()
     total = venta.subtotal + venta.iva
-    return VentaConDetallesResponse(venta=venta, detalles=detalles, total=total) #type: ignore
+    return VentaConDetallesResponse(venta=venta, detalles=detalles, total=total)  # type: ignore

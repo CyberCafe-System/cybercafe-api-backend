@@ -6,9 +6,8 @@ from datetime import datetime, timezone
 from models.detalle_renta import DetalleRenta
 
 class EstadoPago(str, Enum):
-    PENDIENTE = "Pendiente"
-    PAGADO = "Pagado"
-
+    PENDIENTE = "PENDIENTE"
+    PAGADO = "PAGADO"
 
 
 def obtener_fecha_utc():
@@ -17,9 +16,12 @@ def obtener_fecha_utc():
 class RentaBase(SQLModel):
     usuario_id: int = Field(foreign_key="usuarios.usuario_id")
     cliente_id: int = Field(foreign_key="clientes.cliente_id")
+    clave_idempotencia: Optional[str] = Field(default=None, max_length=32)
     fecha: datetime = Field(default_factory=obtener_fecha_utc)
     total: Decimal = Field(max_digits=10, decimal_places=2)
     estado_de_pago: EstadoPago = Field(sa_column=Column(SAEnum(EstadoPago)))
+    efectivo_recibido: Optional[Decimal] = Field(default=None, max_digits=10, decimal_places=2)
+    cambio: Optional[Decimal] = Field(default=None, max_digits=10, decimal_places=2)
 
 class Renta(RentaBase, table=True):
     __tablename__ = "rentas" #type: ignore
@@ -32,13 +34,17 @@ class RentaUpdate(SQLModel):
     cliente_id: Optional[int] = None
     total: Optional[Decimal] = None
     estado_de_pago: Optional[EstadoPago] = None
+    efectivo_recibido: Optional[Decimal] = None
+    cambio: Optional[Decimal] = None
 
 
 class IniciarRentaRequest(SQLModel):
     cliente_id: int
     equipo_id: int
-    tiempo_de_renta: int = Field(ge=15, description="Tiempo de uso en minutos (ej: 30, 60, 120)")
-    estado_de_pago: EstadoPago = Field(default=EstadoPago.PENDIENTE)
+    tiempo_de_renta: int = Field(ge=15, le=480, description="Tiempo de uso en minutos (15 a 480)")
+    estado_de_pago: EstadoPago = Field(default=EstadoPago.PAGADO)
+    efectivo_recibido: Optional[Decimal] = Field(default=None, description="Efectivo recibido")
+    clave_idempotencia: Optional[str] = Field(default=None, max_length=32)
 
 
 class RentaConDetallesResponse(SQLModel):
@@ -47,13 +53,15 @@ class RentaConDetallesResponse(SQLModel):
 
 
 class RentaActivaResponse(SQLModel):
-    """Sesión de renta activa con el tiempo restante calculado en vivo."""
+    """Sesión de renta activa o tiempo terminado con el tiempo restante calculado en vivo."""
 
     detalle_renta_id: int
     renta_id: int
     equipo_id: int
+    cliente_nombre: Optional[str] = None
     hora_inicio: datetime
     hora_fin: Optional[datetime] = None
+    hora_vencimiento: Optional[datetime] = None
     tiempo_de_renta: int
     tiempo_agregado: Optional[int] = None
     tiempo_total: int

@@ -1,16 +1,39 @@
+import logging
+import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
-import os
 from librerias.token_blacklist import token_blacklist
 from config.session_dependencia import SessionDeDependencia
 
 load_dotenv()
 
-SECRET_KEY_TOKEN = os.getenv("SECRET_KEY_TOKEN", "123456789")
+logger = logging.getLogger("cybercafe.security")
+
+
+def _obtener_secret_key() -> str:
+    raw = (os.getenv("SECRET_KEY_TOKEN") or "").strip()
+    if raw and raw != "123456789" and len(raw) >= 32:
+        return raw
+    if os.getenv("STRICT_SECRET_KEY", "").strip().lower() in ("1", "true", "yes"):
+        raise RuntimeError(
+            "SECRET_KEY_TOKEN debe configurarse en el entorno con al menos 32 caracteres."
+        )
+    if raw and raw != "123456789":
+        # Clave provista en entorno pero menor a 32 bytes: expandir de forma determinista con SHA-256
+        import hashlib
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    logger.warning(
+        "SECRET_KEY_TOKEN no configurada o insegura; se generó una clave efímera para esta ejecución."
+    )
+    return secrets.token_urlsafe(32)
+
+
+SECRET_KEY_TOKEN = _obtener_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 

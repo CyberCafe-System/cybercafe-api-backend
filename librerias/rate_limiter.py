@@ -47,13 +47,17 @@ class LoginRateLimiter:
     def get_client_key(self, request: Request, username: str) -> str:
         """
         Genera una clave única basada en la IP del cliente y el nombre de usuario.
-        Evita bloqueos globales por DoS o afecciones a usuarios en la misma red.
+        Solo confía en X-Forwarded-For cuando TRUST_PROXY_HEADERS está habilitado explícitamente.
         """
         client_ip = "127.0.0.1"
-        if request.headers.get("x-forwarded-for"):
-            # En caso de estar tras un proxy inverso (Nginx, Cloudflare, etc.)
+        trust_proxy = os.getenv("TRUST_PROXY_HEADERS", "false").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        if trust_proxy and request.headers.get("x-forwarded-for"):
             forwarded = request.headers.get("x-forwarded-for", "")
-            client_ip = forwarded.split(",")[0].strip()
+            client_ip = forwarded.split(",")[0].strip() or "127.0.0.1"
         elif request.client and request.client.host:
             client_ip = request.client.host
 

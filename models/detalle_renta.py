@@ -5,14 +5,16 @@ from decimal import Decimal
 from datetime import datetime
 
 class EstadoRenta(str, Enum):
-    ACTIVA = "Activa"
-    FINALIZADA = "Finalizada"
-    PENDIENTE_REVISION = "Pendiente Revision"
+    ACTIVA = "ACTIVA"
+    TIEMPO_TERMINADO = "TIEMPO_TERMINADO"
+    FINALIZADA = "FINALIZADA"
+    PENDIENTE_REVISION = "PENDIENTE_REVISION"
 
 class DetalleRentaBase(SQLModel):
     renta_id: int = Field(foreign_key="rentas.renta_id")
     equipo_id: int = Field(foreign_key="equipos.equipo_id")
     hora_inicio: datetime
+    hora_vencimiento: Optional[datetime] = Field(default=None)
     tiempo_de_renta: int
     tiempo_agregado: Optional[int] = Field(default=None)
     hora_fin: Optional[datetime] = Field(default=None)
@@ -30,6 +32,7 @@ class DetalleRentaCreate(DetalleRentaBase):
 
 class DetalleRentaUpdate(SQLModel):
     tiempo_agregado: Optional[int] = None
+    hora_vencimiento: Optional[datetime] = None
     hora_fin: Optional[datetime] = None
     subtotal: Optional[Decimal] = None
     estado: Optional[EstadoRenta] = None

@@ -21,6 +21,10 @@ class RevisionEquipo(RevisionEquipoBase, table=True):
 class RevisionEquipoResponse(RevisionEquipoBase):
     revision_equipo_id: int
     usuario_nombre: Optional[str] = None
+    equipo_id: Optional[int] = None
+    equipo_nombre: Optional[str] = None
+    equipo_tipo: Optional[str] = None
+    cliente_nombre: Optional[str] = None
 
 class ComponenteRevisionItem(SQLModel):
     componente_id: Optional[int] = None

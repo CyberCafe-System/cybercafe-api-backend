@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlmodel import select
 
+from config.paginacion import paginar_consulta
 from config.security_dependencia import Token_Dependencia
 from config.session_dependencia import SessionDeDependencia
 from models.componente import (
@@ -40,7 +41,8 @@ def validar_equipo(session: SessionDeDependencia, equipo_id: int | None) -> None
     response_model=list[Componente],
     status_code=status.HTTP_200_OK,
 )
-async def get_componentes(
+def get_componentes(
+    response: Response,
     session: SessionDeDependencia,
     token: Token_Dependencia,
     equipo_id: int | None = Query(None, description="Filtrar por equipo asignado"),
@@ -49,7 +51,7 @@ async def get_componentes(
     activo: bool | None = Query(None, description="Filtrar por estado activo/inactivo"),
     sin_equipo: bool | None = Query(None, description="Filtrar componentes en bodega/sin asignar"),
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1),
+    limit: int = Query(20, ge=1, le=500),
 ):
     validar_permisos_lectura(token)
     consulta = select(Componente)
@@ -57,7 +59,7 @@ async def get_componentes(
     if equipo_id is not None:
         consulta = consulta.where(Componente.equipo_id == equipo_id)
     if sin_equipo is True:
-        consulta = consulta.where(Componente.equipo_id.is_(None)) #type: ignore
+        consulta = consulta.where(Componente.equipo_id.is_(None))  # type: ignore
     if tipo is not None:
         consulta = consulta.where(Componente.tipo == tipo)
     if estado is not None:
@@ -65,7 +67,14 @@ async def get_componentes(
     if activo is not None:
         consulta = consulta.where(Componente.activo == activo)
 
-    return session.exec(consulta.offset(offset).limit(limit)).all()
+    return paginar_consulta(
+        session=session,
+        response=response,
+        consulta=consulta,
+        columna_orden=Componente.componente_id.asc(),  # type: ignore
+        offset=offset,
+        limit=limit,
+    )
 
 
 @router.get(
@@ -73,7 +82,7 @@ async def get_componentes(
     response_model=list[Componente],
     status_code=status.HTTP_200_OK,
 )
-async def get_componentes_por_equipo(
+def get_componentes_por_equipo(
     equipo_id: int,
     session: SessionDeDependencia,
     token: Token_Dependencia,
@@ -83,6 +92,7 @@ async def get_componentes_por_equipo(
     validar_equipo(session, equipo_id)
     consulta = (
         select(Componente)
-        .where(Componente.equipo_id == equipo_id, Componente.activo == True)
+        .where(Componente.equipo_id == equipo_id, Componente.activo == True)  # type: ignore
+        .order_by(Componente.componente_id.asc())  # type: ignore
     )
     return session.exec(consulta).all()

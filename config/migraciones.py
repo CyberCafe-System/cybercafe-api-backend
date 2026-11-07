@@ -428,6 +428,31 @@ def _m_v014(conn, db_name: str):
         )
 
 
+def _m_v015(conn, db_name: str):
+    """RevisionEquipo: UNIQUE(detalle_renta_id) para impedir dobles inspecciones concurrentes"""
+    if not _indice_existe(conn, db_name, "revisiones_equipo", "uq_revision_detalle_renta"):
+        try:
+            # Limpiar posibles revisiones duplicadas conservando la más reciente por detalle_renta_id
+            conn.execute(
+                text(
+                    """
+                    DELETE r1 FROM `revisiones_equipo` r1
+                    INNER JOIN `revisiones_equipo` r2
+                    WHERE r1.`detalle_renta_id` = r2.`detalle_renta_id`
+                      AND r1.`revision_equipo_id` < r2.`revision_equipo_id`;
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "ALTER TABLE `revisiones_equipo` "
+                    "ADD UNIQUE KEY `uq_revision_detalle_renta` (`detalle_renta_id`);"
+                )
+            )
+        except Exception as e:
+            logger.warning("No se pudo agregar indice uq_revision_detalle_renta: %s", e)
+
+
 # Lista ordenada de migraciones
 MIGRACIONES = [
     ("V001", "Crear tabla esquema_migraciones", _m_v001),
@@ -444,6 +469,7 @@ MIGRACIONES = [
     ("V012", "Tabla auditoria de cambios del sistema", _m_v012),
     ("V013", "Ventas: campos de anulacion", _m_v013),
     ("V014", "Clientes: direccion opcional nullable y Equipos: columna activo", _m_v014),
+    ("V015", "RevisionEquipo: unique detalle_renta_id", _m_v015),
 ]
 
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 from config.security_dependencia import Token_Dependencia
 from config.session_dependencia import SessionDeDependencia
@@ -14,9 +14,10 @@ router = APIRouter(prefix="/notificaciones", tags=["notificaciones"])
     response_model=list[NotificacionResponse],
     status_code=status.HTTP_200_OK,
 )
-async def get_notificaciones_pendientes(
+def get_notificaciones_pendientes(
     session: SessionDeDependencia,
     token: Token_Dependencia,
+    limit: int = Query(100, ge=1, le=500),
 ):
     """
     Obtiene las notificaciones no leídas para el usuario autenticado (Asistente o Admin).
@@ -26,11 +27,11 @@ async def get_notificaciones_pendientes(
     if not usuario_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autenticado")
 
-    # Ejecutar verificación de vencimientos en cada sondeo
+    # Ejecutar verificación de vencimientos en cada sondeo de forma segura
     try:
         verificar_vencimiento_rentas(session)
     except Exception:
-        pass
+        session.rollback()
 
     consulta = (
         select(Notificacion)
@@ -39,6 +40,7 @@ async def get_notificaciones_pendientes(
             Notificacion.leida_en == None,  # type: ignore
         )
         .order_by(Notificacion.creada_en.desc())  # type: ignore
+        .limit(limit)
     )
     return session.exec(consulta).all()
 
@@ -47,7 +49,7 @@ async def get_notificaciones_pendientes(
     "/{notificacion_id}/leer",
     status_code=status.HTTP_200_OK,
 )
-async def marcar_notificacion_leida(
+def marcar_notificacion_leida(
     notificacion_id: int,
     session: SessionDeDependencia,
     token: Token_Dependencia,
@@ -68,7 +70,7 @@ async def marcar_notificacion_leida(
     "/leer-todas",
     status_code=status.HTTP_200_OK,
 )
-async def marcar_todas_leidas(
+def marcar_todas_leidas(
     session: SessionDeDependencia,
     token: Token_Dependencia,
 ):
@@ -86,4 +88,3 @@ async def marcar_todas_leidas(
         session.add(n)
     session.commit()
     return {"message": "Todas las notificaciones fueron marcadas como leídas", "total": len(notificaciones)}
-

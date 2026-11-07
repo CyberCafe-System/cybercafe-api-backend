@@ -99,7 +99,7 @@ def inicializar_datos_semilla():
                 )
                 session.add(admin_user)
                 session.commit()
-                print("Usuario administrador creado (usuario: admin, password: admin123)")
+                print("Usuario administrador inicializado (usuario: admin)")
     except Exception as e:
         print(f"Aviso al inicializar datos semilla: {e}")
 
@@ -116,9 +116,13 @@ def crear_db_y_tablas():
 
 
 def get_session():
+    from fastapi import HTTPException
     with Session(engine) as session:
         try:
             yield session
+        except HTTPException:
+            raise
         except Exception as e:
+            session.rollback()
             print(f"Error en la session de la bd: {e}")
             raise

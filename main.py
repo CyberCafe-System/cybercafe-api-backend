@@ -1,10 +1,13 @@
 import os
 import asyncio
+import logging
 from dotenv import load_dotenv
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlmodel import Session
+
+logger = logging.getLogger("cybercafe.main")
 
 from routers.router_usuarios import router as usuario_router
 from routers.router_equipos import router as equipo_router
@@ -29,17 +32,26 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "production").strip().lower()
 HABILITAR_DOCS = ENVIRONMENT in ("development", "dev", "local")
 
 
+def _ejecutar_verificacion_sincrona():
+    """Ejecuta la verificación de rentas vencidas en un hilo trabajador."""
+    with Session(engine) as s:
+        try:
+            verificar_vencimiento_rentas(s)
+        except Exception as exc:
+            s.rollback()
+            logger.warning("Error en tarea periódica de vencimiento: %s", exc, exc_info=True)
+
+
 async def _tarea_periodica_vencimiento():
     """Revisa cada 15 segundos sesiones activas vencidas y genera notificaciones."""
     while True:
         try:
             await asyncio.sleep(15)
-            with Session(engine) as s:
-                verificar_vencimiento_rentas(s)
+            await asyncio.to_thread(_ejecutar_verificacion_sincrona)
         except asyncio.CancelledError:
             break
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Fallo inesperado en ciclo periódico: %s", exc, exc_info=True)
 
 
 @asynccontextmanager
@@ -71,6 +83,7 @@ if cors_origins_env == "*" or not cors_origins_env:
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Total-Count"],
     )
 else:
     origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
@@ -80,10 +93,11 @@ else:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Total-Count"],
     )
 
 @app.get("/", summary="Comprobando Api", status_code=status.HTTP_200_OK)
-async def home():
+def home():
     return {"message": "ok"}
 
 app.include_router(oauth_router, tags=['oauth'])

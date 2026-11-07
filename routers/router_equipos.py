@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import select
 
+from config.paginacion import paginar_consulta
+from config.security import get_current_user
 from config.security_dependencia import Token_Dependencia
 from config.session_dependencia import SessionDeDependencia
-from config.security import get_current_user
 from models.equipo import Equipo
 
 
@@ -25,11 +26,26 @@ def validar_permisos_lectura(token: dict) -> None:
     response_model=list[Equipo],
     status_code=status.HTTP_200_OK,
 )
-async def get_equipos(
+def get_equipos(
+    response: Response,
     session: SessionDeDependencia,
     token: Token_Dependencia,
+    incluir_inactivos: bool = Query(
+        False, description="Si es True, incluye equipos desactivados"
+    ),
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1),
+    limit: int = Query(20, ge=1, le=500),
 ):
     validar_permisos_lectura(token)
-    return session.exec(select(Equipo).offset(offset).limit(limit)).all()
+    consulta = select(Equipo)
+    if not incluir_inactivos:
+        consulta = consulta.where(Equipo.activo == True)  # type: ignore
+
+    return paginar_consulta(
+        session=session,
+        response=response,
+        consulta=consulta,
+        columna_orden=Equipo.equipo_id.asc(),  # type: ignore
+        offset=offset,
+        limit=limit,
+    )

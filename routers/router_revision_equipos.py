@@ -420,6 +420,14 @@ def create_revision(
     # 8. Registrar en tabla de auditoría
     if revision.revision_equipo_id is not None:
         estado_equipo_nuevo = equipo.estado.value if hasattr(equipo.estado, "value") else str(equipo.estado)
+        ip_cliente = (
+            request.headers.get("cf-connecting-ip")
+            or request.headers.get("x-real-ip")
+            or (request.headers.get("x-forwarded-for", "").split(",")[0].strip() if request.headers.get("x-forwarded-for") else None)
+            or (request.client.host if request.client else None)
+        )
+        if ip_cliente:
+            ip_cliente = ip_cliente[:45]
         session.add(
             Auditoria(
                 usuario_id=usuario_id,
@@ -433,7 +441,7 @@ def create_revision(
                     "inspeccion_pasada": datos.inspeccion_pasada,
                 },
                 origen="API",
-                ip=request.client.host if request.client else None,
+                ip=ip_cliente,
             )
         )
 
